@@ -357,10 +357,12 @@ export namespace SessionProcessor {
             if (retry !== undefined) {
               attempt++
               const delay = SessionRetry.delay(attempt, error.name === "APIError" ? error : undefined)
+              const seconds = Math.max(1, Math.ceil(delay / 1000))
+              const message = `Rate limit hit, retrying in ${seconds}s`
               SessionStatus.set(input.sessionID, {
                 type: "retry",
                 attempt,
-                message: retry,
+                message,
                 next: Date.now() + delay,
               })
               await SessionRetry.sleep(delay, input.abort).catch(() => {})
