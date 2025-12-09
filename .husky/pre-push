@@ -2,6 +2,12 @@
 # Check if bun version matches package.json
 EXPECTED_VERSION=$(grep '"packageManager"' package.json | sed 's/.*"bun@\([^"]*\)".*/\1/')
 
+# Allow skipping typecheck explicitly
+if [ "${SKIP_HUSKY_TYPECHECK:-}" = "1" ]; then
+  echo "Skipping bun typecheck due to SKIP_HUSKY_TYPECHECK=1"
+  exit 0
+fi
+
 # Ensure bun is on PATH (support both brew and the installer at ~/.bun/bin)
 if ! command -v bun >/dev/null 2>&1; then
   if [ -x "$HOME/.bun/bin/bun" ]; then
