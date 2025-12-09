@@ -28,12 +28,21 @@ export function Sidebar(props: { sessionID: string }) {
   // Sort MCP servers alphabetically for consistent display order
   const mcpEntries = createMemo(() => Object.entries(sync.data.mcp).sort(([a], [b]) => a.localeCompare(b)))
 
-  const cost = createMemo(() => {
-    const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(total)
+  const usage = createMemo(() => {
+    const now = Date.now()
+    const assistants = messages().filter((m) => m.role === "assistant")
+    const total = assistants.length
+    const countWithin = (ms: number) =>
+      assistants.filter((m) => {
+        const t = m.time?.completed ?? m.time?.updated ?? m.time?.created ?? 0
+        return now - t <= ms
+      }).length
+    return {
+      total,
+      min1: countWithin(60_000),
+      hour1: countWithin(60 * 60_000),
+      day1: countWithin(24 * 60 * 60_000),
+    }
   })
 
   const context = createMemo(() => {
@@ -81,7 +90,9 @@ export function Sidebar(props: { sessionID: string }) {
               </text>
               <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
               <text fg={theme.textMuted}>{context()?.percentage ?? 0}% used</text>
-              <text fg={theme.textMuted}>{cost()} spent</text>
+              <text fg={theme.textMuted}>
+                Requests: {usage().total} (1m {usage().min1} / 1h {usage().hour1} / 24h {usage().day1})
+              </text>
             </box>
             <Show when={mcpEntries().length > 0}>
               <box>

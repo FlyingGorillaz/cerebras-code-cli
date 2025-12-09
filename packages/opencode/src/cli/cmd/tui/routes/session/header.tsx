@@ -17,12 +17,16 @@ const Title = (props: { session: Accessor<Session> }) => {
   )
 }
 
-const ContextInfo = (props: { context: Accessor<string | undefined>; cost: Accessor<string> }) => {
+const ContextInfo = (props: {
+  context: Accessor<string | undefined>
+  usage: Accessor<{ total: number; min1: number; hour1: number; day1: number }>
+}) => {
   const { theme } = useTheme()
   return (
     <Show when={props.context()}>
       <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
-        {props.context()} ({props.cost()})
+        {props.context()} • Requests: {props.usage().total} (1m {props.usage().min1} / 1h {props.usage().hour1} / 24h{" "}
+        {props.usage().day1})
       </text>
     </Show>
   )
@@ -35,15 +39,21 @@ export function Header() {
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
   const shareEnabled = createMemo(() => sync.data.config.share !== "disabled")
 
-  const cost = createMemo(() => {
-    const total = pipe(
-      messages(),
-      sumBy((x) => (x.role === "assistant" ? x.cost : 0)),
-    )
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(total)
+  const usage = createMemo(() => {
+    const now = Date.now()
+    const assistants = messages().filter((m) => m.role === "assistant")
+    const total = assistants.length
+    const countWithin = (ms: number) =>
+      assistants.filter((m) => {
+        const t = m.time?.completed ?? m.time?.updated ?? m.time?.created ?? 0
+        return now - t <= ms
+      }).length
+    return {
+      total,
+      min1: countWithin(60_000),
+      hour1: countWithin(60 * 60_000),
+      day1: countWithin(24 * 60 * 60_000),
+    }
   })
 
   const context = createMemo(() => {
@@ -88,13 +98,13 @@ export function Header() {
                 Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
               </text>
               <box flexGrow={1} flexShrink={1} />
-              <ContextInfo context={context} cost={cost} />
+              <ContextInfo context={context} usage={usage} />
             </box>
           </Match>
           <Match when={true}>
             <box flexDirection="row" justifyContent="space-between" gap={1}>
               <Title session={session} />
-              <ContextInfo context={context} cost={cost} />
+              <ContextInfo context={context} usage={usage} />
             </box>
             <Show when={shareEnabled()}>
               <box flexDirection="row" justifyContent="space-between" gap={1}>
