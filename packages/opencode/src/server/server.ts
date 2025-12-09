@@ -1459,7 +1459,10 @@ export namespace Server {
             }
           }
 
-          const providers = mapValues(filteredProviders, (x) => Provider.fromModelsDevProvider(x))
+          const entries = await Promise.all(
+            Object.entries(filteredProviders).map(async ([key, value]) => [key, await Provider.fromModelsDevProvider(value)] as const),
+          )
+          const providers = Object.fromEntries(entries)
           const connected = await Provider.list().then((x) => Object.keys(x))
           return c.json({
             all: Object.values(providers),
