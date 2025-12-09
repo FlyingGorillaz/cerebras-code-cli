@@ -1,6 +1,19 @@
 #!/bin/sh
 # Check if bun version matches package.json
 EXPECTED_VERSION=$(grep '"packageManager"' package.json | sed 's/.*"bun@\([^"]*\)".*/\1/')
+
+# Ensure bun is on PATH (support both brew and the installer at ~/.bun/bin)
+if ! command -v bun >/dev/null 2>&1; then
+  if [ -x "$HOME/.bun/bin/bun" ]; then
+    export PATH="$HOME/.bun/bin:$PATH"
+  fi
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "Error: bun not found in PATH. Install bun or add it to PATH."
+  exit 1
+fi
+
 CURRENT_VERSION=$(bun --version)
 if [ "$CURRENT_VERSION" != "$EXPECTED_VERSION" ]; then
   echo "Error: Bun version $CURRENT_VERSION does not match expected version $EXPECTED_VERSION from package.json"
