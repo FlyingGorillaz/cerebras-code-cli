@@ -341,6 +341,11 @@ export function Autocomplete(props: {
         onSelect: () => command.trigger("help.show"),
       },
       {
+        display: "/feedback",
+        description: "send feedback or report a bug",
+        onSelect: () => command.trigger("feedback.send"),
+      },
+      {
         display: "/commands",
         description: "show all commands",
         onSelect: () => command.show(),
