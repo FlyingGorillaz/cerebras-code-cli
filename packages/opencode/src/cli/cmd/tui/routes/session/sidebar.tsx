@@ -57,6 +57,25 @@ export function Sidebar(props: { sessionID: string }) {
     }
   })
 
+  const cacheStats = createMemo(() => {
+    const assistants = messages().filter((m) => m.role === "assistant") as AssistantMessage[]
+    let totalCachedTokens = 0
+    let totalPromptTokens = 0
+    for (const msg of assistants) {
+      // Total prompt = input + cached (input may be non-cached portion only)
+      const cached = msg.tokens.cache.read
+      const total = msg.tokens.input + cached
+      totalCachedTokens += cached
+      totalPromptTokens += total
+    }
+    const hitRate = totalPromptTokens > 0 ? (totalCachedTokens / totalPromptTokens) * 100 : 0
+    return {
+      promptTokens: totalPromptTokens,
+      cachedTokens: totalCachedTokens,
+      hitRate: hitRate.toFixed(1),
+    }
+  })
+
   const keybind = useKeybind()
   const directory = useDirectory()
 
@@ -94,6 +113,17 @@ export function Sidebar(props: { sessionID: string }) {
                 Requests: {usage().total} (1m {usage().min1} / 1h {usage().hour1} / 24h {usage().day1})
               </text>
             </box>
+            <Show when={cacheStats().promptTokens > 0}>
+              <box>
+                <text fg={theme.text}>
+                  <b>Cache</b>
+                </text>
+                <text fg={theme.textMuted}>Hit rate: {cacheStats().hitRate}%</text>
+                <text fg={theme.textMuted}>
+                  {cacheStats().cachedTokens.toLocaleString()} / {cacheStats().promptTokens.toLocaleString()} tokens
+                </text>
+              </box>
+            </Show>
             <Show when={mcpEntries().length > 0}>
               <box>
                 <box
