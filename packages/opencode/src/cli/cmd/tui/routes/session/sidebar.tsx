@@ -10,6 +10,58 @@ import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 
+// Visual representation of cache hit rate
+function CacheVisual(props: { hitRate: number; cachedTokens: number; promptTokens: number }) {
+  const { theme } = useTheme()
+
+  // Progress bar using block characters
+  const barWidth = 20
+  const filledBlocks = createMemo(() => Math.round((props.hitRate / 100) * barWidth))
+  const progressBar = createMemo(() => {
+    const filled = filledBlocks()
+    const empty = barWidth - filled
+    return "█".repeat(filled) + "░".repeat(empty)
+  })
+
+  // Pie/wheel indicator using circle segments
+  const pieIndicator = createMemo(() => {
+    const rate = props.hitRate
+    if (rate >= 87.5) return "●" // Full
+    if (rate >= 62.5) return "◕" // 3/4
+    if (rate >= 37.5) return "◑" // Half
+    if (rate >= 12.5) return "◔" // 1/4
+    return "○" // Empty
+  })
+
+  // Color based on hit rate (gradient from red to green)
+  const rateColor = createMemo(() => {
+    const rate = props.hitRate
+    if (rate >= 70) return theme.success
+    if (rate >= 40) return theme.warning
+    return theme.error
+  })
+
+  return (
+    <>
+      {/* Pie indicator with percentage */}
+      <box flexDirection="row" gap={1}>
+        <text style={{ fg: rateColor() }}>{pieIndicator()}</text>
+        <text fg={theme.textMuted}>
+          {props.hitRate.toFixed(1)}% hit rate
+        </text>
+      </box>
+      {/* Progress bar */}
+      <text>
+        <span style={{ fg: rateColor() }}>{progressBar()}</span>
+      </text>
+      {/* Token counts */}
+      <text fg={theme.textMuted}>
+        {props.cachedTokens.toLocaleString()} / {props.promptTokens.toLocaleString()} tokens
+      </text>
+    </>
+  )
+}
+
 export function Sidebar(props: { sessionID: string }) {
   const sync = useSync()
   const { theme } = useTheme()
@@ -118,10 +170,11 @@ export function Sidebar(props: { sessionID: string }) {
                 <text fg={theme.text}>
                   <b>Cache</b>
                 </text>
-                <text fg={theme.textMuted}>Hit rate: {cacheStats().hitRate}%</text>
-                <text fg={theme.textMuted}>
-                  {cacheStats().cachedTokens.toLocaleString()} / {cacheStats().promptTokens.toLocaleString()} tokens
-                </text>
+                <CacheVisual
+                  hitRate={parseFloat(cacheStats().hitRate)}
+                  cachedTokens={cacheStats().cachedTokens}
+                  promptTokens={cacheStats().promptTokens}
+                />
               </box>
             </Show>
             <Show when={mcpEntries().length > 0}>
