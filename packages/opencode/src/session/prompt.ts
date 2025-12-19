@@ -477,6 +477,8 @@ export namespace SessionPrompt {
         system: lastUser.system,
         isLastStep,
       })
+      // Get environment separately for cache-optimal placement (after conversation history)
+      const environment = (await SystemPrompt.environment()).join("\n")
       const tools = await resolveTools({
         agent,
         sessionID,
@@ -567,37 +569,60 @@ export namespace SessionPrompt {
         temperature: params.temperature,
         topP: params.topP,
         toolChoice: isLastStep ? "none" : undefined,
-        messages: [
-          ...system.map(
-            (x): ModelMessage => ({
-              role: "system",
-              content: x,
-            }),
-          ),
-          ...MessageV2.toModelMessage(
-            msgs.filter((m) => {
-              if (m.info.role !== "assistant" || m.info.error === undefined) {
-                return true
-              }
-              if (
-                MessageV2.AbortedError.isInstance(m.info.error) &&
-                m.parts.some((part) => part.type !== "step-start" && part.type !== "reasoning")
-              ) {
-                return true
-              }
+        messages: (() => {
+          // Filter messages first
+          const filteredMsgs = msgs.filter((m) => {
+            if (m.info.role !== "assistant" || m.info.error === undefined) {
+              return true
+            }
+            if (
+              MessageV2.AbortedError.isInstance(m.info.error) &&
+              m.parts.some((part) => part.type !== "step-start" && part.type !== "reasoning")
+            ) {
+              return true
+            }
+            return false
+          })
 
-              return false
-            }),
-          ),
-          ...(isLastStep
-            ? [
-                {
-                  role: "assistant" as const,
-                  content: MAX_STEPS,
-                },
-              ]
-            : []),
-        ],
+          // Convert to model messages
+          const modelMessages = MessageV2.toModelMessage(filteredMsgs)
+
+          // Find the last user message index to inject environment before it
+          let lastUserIdx = modelMessages.length
+          for (let i = modelMessages.length - 1; i >= 0; i--) {
+            if (modelMessages[i].role === "user") {
+              lastUserIdx = i
+              break
+            }
+          }
+
+          // Build final messages: system + history + environment + last user message
+          const result = [
+            ...system.map((x) => ({
+              role: "system" as const,
+              content: x,
+            })),
+            // Messages before the last user message
+            ...modelMessages.slice(0, lastUserIdx),
+            // Environment context (injected right before last user message for cache efficiency)
+            {
+              role: "user" as const,
+              content: environment,
+            },
+            // Last user message and any messages after it
+            ...modelMessages.slice(lastUserIdx),
+          ]
+
+          // Add MAX_STEPS assistant prefill if on last step
+          if (isLastStep) {
+            result.push({
+              role: "assistant" as const,
+              content: MAX_STEPS,
+            })
+          }
+
+          return result
+        })(),
         tools: model.capabilities.toolcall === false ? undefined : tools,
         model: wrapLanguageModel({
           model: language,
@@ -666,7 +691,6 @@ export namespace SessionPrompt {
         return SystemPrompt.provider(input.model)
       })(),
     )
-    system.push(...(await SystemPrompt.environment()))
     system.push(...(await SystemPrompt.custom()))
 
     if (input.isLastStep) {
