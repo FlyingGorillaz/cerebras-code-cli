@@ -1,7 +1,8 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, createEffect, createSignal, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
+import { useToast } from "../../ui/toast"
 import { Locale } from "@/util/locale"
 import path from "path"
 import type { AssistantMessage } from "@opencode-ai/sdk/v2"
@@ -9,6 +10,10 @@ import { Global } from "@/global"
 import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
+
+// Threshold for low cache hit rate warning
+const LOW_CACHE_HIT_THRESHOLD = 40
+const CONSECUTIVE_LOW_COUNT = 3
 
 // Visual representation of cache hit rate
 function CacheVisual(props: { hitRate: number; cachedTokens: number; promptTokens: number }) {
@@ -65,10 +70,15 @@ function CacheVisual(props: { hitRate: number; cachedTokens: number; promptToken
 export function Sidebar(props: { sessionID: string }) {
   const sync = useSync()
   const { theme } = useTheme()
+  const toast = useToast()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+
+  // Track whether we've shown the low cache warning for this session
+  const [hasShownCacheWarning, setHasShownCacheWarning] = createSignal(false)
+  const [lastMessageCount, setLastMessageCount] = createSignal(0)
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -125,6 +135,54 @@ export function Sidebar(props: { sessionID: string }) {
       promptTokens: totalPromptTokens,
       cachedTokens: totalCachedTokens,
       hitRate: hitRate.toFixed(1),
+    }
+  })
+
+  // Calculate per-message cache hit rates for completed assistant messages
+  const perMessageCacheRates = createMemo(() => {
+    const assistants = messages().filter(
+      (m) => m.role === "assistant" && m.time.completed
+    ) as AssistantMessage[]
+    return assistants.map((msg) => {
+      const cached = msg.tokens.cache.read
+      const total = msg.tokens.input + cached
+      return total > 0 ? (cached / total) * 100 : 0
+    })
+  })
+
+  // Monitor for consecutive low cache hit rates
+  createEffect(() => {
+    const rates = perMessageCacheRates()
+    const currentCount = rates.length
+
+    // Only check when we have new completed messages
+    if (currentCount <= lastMessageCount()) {
+      return
+    }
+    setLastMessageCount(currentCount)
+
+    if (rates.length < CONSECUTIVE_LOW_COUNT) {
+      return
+    }
+
+    const lastNRates = rates.slice(-CONSECUTIVE_LOW_COUNT)
+    const allBelowThreshold = lastNRates.every((rate) => rate < LOW_CACHE_HIT_THRESHOLD)
+
+    if (allBelowThreshold && !hasShownCacheWarning()) {
+      setHasShownCacheWarning(true)
+      toast.show({
+        variant: "warning",
+        title: "Low Cache Hit Rate",
+        message: `Cache hit rate has been below ${LOW_CACHE_HIT_THRESHOLD}% for the last ${CONSECUTIVE_LOW_COUNT} requests. This may increase costs and latency.`,
+        duration: 8000,
+      })
+    }
+
+    if (!allBelowThreshold && hasShownCacheWarning()) {
+      const lastNAboveThreshold = lastNRates.every((rate) => rate >= LOW_CACHE_HIT_THRESHOLD)
+      if (lastNAboveThreshold) {
+        setHasShownCacheWarning(false)
+      }
     }
   })
 
