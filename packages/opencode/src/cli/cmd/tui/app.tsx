@@ -35,6 +35,11 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 
+import { cerebrasLogin } from "@/provider/cerebras/login"
+import { Notification } from "@/notification"
+import { FullscreenNotification } from "@tui/component/dialog-notification"
+import { NotificationBanner } from "@tui/component/notification-banner"
+
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
   if (!process.stdin.isTTY) return "dark"
@@ -165,6 +170,8 @@ function App() {
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
+  const [bannerNotification, setBannerNotification] = createSignal<import("@/notification").Notification | null>(null)
+  const [fullscreenNotification, setFullscreenNotification] = createSignal<import("@/notification").Notification | null>(null)
 
   createEffect(() => {
     console.log(JSON.stringify(route.data))
@@ -209,6 +216,26 @@ function App() {
           type: "session",
           sessionID: args.sessionID,
         })
+      }
+    })
+
+    // Check for notifications
+    Notification.check().then((notif) => {
+      if (!notif) return
+
+      if (notif.display === "fullscreen") {
+        setFullscreenNotification(notif)
+      } else if (notif.display === "banner") {
+        setBannerNotification(notif)
+      } else {
+        // Toast notification
+        toast.show({
+          variant: notif.type === "critical" ? "error" : notif.type === "warning" ? "warning" : "info",
+          title: notif.title,
+          message: notif.message,
+          duration: 8000,
+        })
+        Notification.markSeen(notif.id)
       }
     })
   })
@@ -524,14 +551,38 @@ function App() {
         }
       }}
     >
-      <Switch>
-        <Match when={route.data.type === "home"}>
-          <Home />
-        </Match>
-        <Match when={route.data.type === "session"}>
-          <Session />
-        </Match>
-      </Switch>
+      <Show
+        when={!fullscreenNotification()}
+        fallback={
+          <FullscreenNotification
+            notification={fullscreenNotification()!}
+            onClose={() => {
+              Notification.markSeen(fullscreenNotification()!.id)
+              setFullscreenNotification(null)
+            }}
+          />
+        }
+      >
+        <Show when={bannerNotification()}>
+          {(notif) => (
+            <NotificationBanner
+              notification={notif()}
+              onDismiss={() => {
+                Notification.markSeen(notif().id)
+                setBannerNotification(null)
+              }}
+            />
+          )}
+        </Show>
+        <Switch>
+          <Match when={route.data.type === "home"}>
+            <Home />
+          </Match>
+          <Match when={route.data.type === "session"}>
+            <Session />
+          </Match>
+        </Switch>
+      </Show>
     </box>
   )
 }
