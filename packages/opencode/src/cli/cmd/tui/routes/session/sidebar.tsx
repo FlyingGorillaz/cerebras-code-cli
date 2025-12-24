@@ -1,7 +1,8 @@
 import { useSync } from "@tui/context/sync"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
+import { createMemo, createEffect, createSignal, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
+import { useToast } from "../../ui/toast"
 import { Locale } from "@/util/locale"
 import path from "path"
 import type { AssistantMessage } from "@opencode-ai/sdk/v2"
@@ -10,13 +11,74 @@ import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
 
+// Threshold for low cache hit rate warning
+const LOW_CACHE_HIT_THRESHOLD = 40
+const CONSECUTIVE_LOW_COUNT = 3
+
+// Visual representation of cache hit rate
+function CacheVisual(props: { hitRate: number; cachedTokens: number; promptTokens: number }) {
+  const { theme } = useTheme()
+
+  // Progress bar using block characters
+  const barWidth = 20
+  const filledBlocks = createMemo(() => Math.round((props.hitRate / 100) * barWidth))
+  const progressBar = createMemo(() => {
+    const filled = filledBlocks()
+    const empty = barWidth - filled
+    return "█".repeat(filled) + "░".repeat(empty)
+  })
+
+  // Pie/wheel indicator using circle segments
+  const pieIndicator = createMemo(() => {
+    const rate = props.hitRate
+    if (rate >= 87.5) return "●" // Full
+    if (rate >= 62.5) return "◕" // 3/4
+    if (rate >= 37.5) return "◑" // Half
+    if (rate >= 12.5) return "◔" // 1/4
+    return "○" // Empty
+  })
+
+  // Color based on hit rate (gradient from red to green)
+  const rateColor = createMemo(() => {
+    const rate = props.hitRate
+    if (rate >= 70) return theme.success
+    if (rate >= 40) return theme.warning
+    return theme.error
+  })
+
+  return (
+    <>
+      {/* Pie indicator with percentage */}
+      <box flexDirection="row" gap={1}>
+        <text style={{ fg: rateColor() }}>{pieIndicator()}</text>
+        <text fg={theme.textMuted}>
+          {props.hitRate.toFixed(1)}% hit rate
+        </text>
+      </box>
+      {/* Progress bar */}
+      <text>
+        <span style={{ fg: rateColor() }}>{progressBar()}</span>
+      </text>
+      {/* Token counts */}
+      <text fg={theme.textMuted}>
+        {props.cachedTokens.toLocaleString()} / {props.promptTokens.toLocaleString()} tokens
+      </text>
+    </>
+  )
+}
+
 export function Sidebar(props: { sessionID: string }) {
   const sync = useSync()
   const { theme } = useTheme()
+  const toast = useToast()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
   const messages = createMemo(() => sync.data.message[props.sessionID] ?? [])
+
+  // Track whether we've shown the low cache warning for this session
+  const [hasShownCacheWarning, setHasShownCacheWarning] = createSignal(false)
+  const [lastMessageCount, setLastMessageCount] = createSignal(0)
 
   const [expanded, setExpanded] = createStore({
     mcp: true,
@@ -57,6 +119,73 @@ export function Sidebar(props: { sessionID: string }) {
     }
   })
 
+  const cacheStats = createMemo(() => {
+    const assistants = messages().filter((m) => m.role === "assistant") as AssistantMessage[]
+    let totalCachedTokens = 0
+    let totalPromptTokens = 0
+    for (const msg of assistants) {
+      // Total prompt = input + cached (input may be non-cached portion only)
+      const cached = msg.tokens.cache.read
+      const total = msg.tokens.input + cached
+      totalCachedTokens += cached
+      totalPromptTokens += total
+    }
+    const hitRate = totalPromptTokens > 0 ? (totalCachedTokens / totalPromptTokens) * 100 : 0
+    return {
+      promptTokens: totalPromptTokens,
+      cachedTokens: totalCachedTokens,
+      hitRate: hitRate.toFixed(1),
+    }
+  })
+
+  // Calculate per-message cache hit rates for completed assistant messages
+  const perMessageCacheRates = createMemo(() => {
+    const assistants = messages().filter(
+      (m) => m.role === "assistant" && m.time.completed
+    ) as AssistantMessage[]
+    return assistants.map((msg) => {
+      const cached = msg.tokens.cache.read
+      const total = msg.tokens.input + cached
+      return total > 0 ? (cached / total) * 100 : 0
+    })
+  })
+
+  // Monitor for consecutive low cache hit rates
+  createEffect(() => {
+    const rates = perMessageCacheRates()
+    const currentCount = rates.length
+
+    // Only check when we have new completed messages
+    if (currentCount <= lastMessageCount()) {
+      return
+    }
+    setLastMessageCount(currentCount)
+
+    if (rates.length < CONSECUTIVE_LOW_COUNT) {
+      return
+    }
+
+    const lastNRates = rates.slice(-CONSECUTIVE_LOW_COUNT)
+    const allBelowThreshold = lastNRates.every((rate) => rate < LOW_CACHE_HIT_THRESHOLD)
+
+    if (allBelowThreshold && !hasShownCacheWarning()) {
+      setHasShownCacheWarning(true)
+      toast.show({
+        variant: "warning",
+        title: "Low Cache Hit Rate",
+        message: `Cache hit rate has been below ${LOW_CACHE_HIT_THRESHOLD}% for the last ${CONSECUTIVE_LOW_COUNT} requests. This may increase costs and latency.`,
+        duration: 8000,
+      })
+    }
+
+    if (!allBelowThreshold && hasShownCacheWarning()) {
+      const lastNAboveThreshold = lastNRates.every((rate) => rate >= LOW_CACHE_HIT_THRESHOLD)
+      if (lastNAboveThreshold) {
+        setHasShownCacheWarning(false)
+      }
+    }
+  })
+
   const keybind = useKeybind()
   const directory = useDirectory()
 
@@ -94,6 +223,18 @@ export function Sidebar(props: { sessionID: string }) {
                 Requests: {usage().total} (1m {usage().min1} / 1h {usage().hour1} / 24h {usage().day1})
               </text>
             </box>
+            <Show when={cacheStats().promptTokens > 0}>
+              <box>
+                <text fg={theme.text}>
+                  <b>Cache</b>
+                </text>
+                <CacheVisual
+                  hitRate={parseFloat(cacheStats().hitRate)}
+                  cachedTokens={cacheStats().cachedTokens}
+                  promptTokens={cacheStats().promptTokens}
+                />
+              </box>
+            </Show>
             <Show when={mcpEntries().length > 0}>
               <box>
                 <box
