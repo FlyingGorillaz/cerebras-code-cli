@@ -15,7 +15,6 @@ import { DialogModel, useConnected } from "@tui/component/dialog-model"
 import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
-import { Dialog } from "@tui/ui/dialog"
 import { DialogHelp } from "./ui/dialog-help"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
@@ -35,7 +34,6 @@ import { Provider } from "@/provider/provider"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
-import { cerebrasLogin } from "@/provider/cerebras/login"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -266,6 +264,36 @@ function App() {
       },
     },
     {
+      title: "Switch model",
+      value: "model.list",
+      keybind: "model_list",
+      suggested: true,
+      category: "Agent",
+      onSelect: () => {
+        dialog.replace(() => <DialogModel />)
+      },
+    },
+    {
+      title: "Model cycle",
+      disabled: true,
+      value: "model.cycle_recent",
+      keybind: "model_cycle_recent",
+      category: "Agent",
+      onSelect: () => {
+        local.model.cycle(1)
+      },
+    },
+    {
+      title: "Model cycle reverse",
+      disabled: true,
+      value: "model.cycle_recent_reverse",
+      keybind: "model_cycle_recent_reverse",
+      category: "Agent",
+      onSelect: () => {
+        local.model.cycle(-1)
+      },
+    },
+    {
       title: "Switch agent",
       value: "agent.list",
       keybind: "agent_list",
@@ -303,36 +331,13 @@ function App() {
       },
     },
     {
-      title: "Cerebras login",
-      value: "cerebras.login",
-      category: "System",
-      onSelect: async () => {
-        command.keybinds(false)
-        promptRef.current?.blur?.()
-        kv.set("login_lock", true)
-        const [status, setStatus] = createSignal("Opening browser for login…")
-        dialog.replace(() => (
-          <Dialog title="Login" hideInput>
-            <box padding={1} flexDirection="column" gap={1}>
-              <text>{status()}</text>
-            </box>
-          </Dialog>
-        ))
-        try {
-          await cerebrasLogin({}, (msg) => setStatus(msg))
-          setStatus("Success! API key saved.")
-          setTimeout(() => dialog.clear(), 1200)
-          toast.show({ variant: "success", message: "Cerebras login success. API key set.", duration: 3000 })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setStatus(`Error: ${msg}`)
-          toast.show({ variant: "error", message: msg, duration: 4000 })
-          setTimeout(() => dialog.clear(), 2000)
-        } finally {
-          kv.set("login_lock", false)
-          command.keybinds(true)
-        }
+      title: "Connect provider",
+      value: "provider.connect",
+      suggested: !connected(),
+      onSelect: () => {
+        dialog.replace(() => <DialogProviderList />)
       },
+      category: "Provider",
     },
     {
       title: "View status",
