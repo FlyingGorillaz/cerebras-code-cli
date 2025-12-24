@@ -41,6 +41,8 @@ export namespace Provider {
     "@openrouter/ai-sdk-provider": createOpenRouter,
     // @ts-ignore (TODO: kill this code so we dont have to maintain it)
     "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
+    // Use OpenAI-compatible SDK for Cerebras to handle response format differences
+    "@ai-sdk/cerebras": createOpenAICompatible,
   }
 
   type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
@@ -89,6 +91,14 @@ export namespace Provider {
           return sdk.responses(modelID)
         },
         options: {},
+      }
+    },
+    cerebras: async () => {
+      return {
+        autoload: false,
+        options: {
+          baseURL: "https://api.cerebras.ai/v1",
+        },
       }
     },
     "github-copilot": async () => {

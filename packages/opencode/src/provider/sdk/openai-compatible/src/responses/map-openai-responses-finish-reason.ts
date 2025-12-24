@@ -4,11 +4,16 @@ export function mapOpenAIResponseFinishReason({
   finishReason,
   hasFunctionCall,
 }: {
-  finishReason: string | null | undefined
+  finishReason: string | Record<string, unknown> | null | undefined
   // flag that checks if there have been client-side tool calls (not executed by openai)
   hasFunctionCall: boolean
 }): LanguageModelV2FinishReason {
-  switch (finishReason) {
+  // Handle object reason (some models return an object instead of string)
+  const reasonStr = typeof finishReason === "object" && finishReason !== null
+    ? (finishReason as Record<string, unknown>).type as string ?? JSON.stringify(finishReason)
+    : finishReason
+
+  switch (reasonStr) {
     case undefined:
     case null:
       return hasFunctionCall ? "tool-calls" : "stop"

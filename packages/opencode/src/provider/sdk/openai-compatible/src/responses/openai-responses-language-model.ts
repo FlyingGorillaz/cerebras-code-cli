@@ -488,7 +488,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV2 {
             ]),
           ),
           service_tier: z.string().nullish(),
-          incomplete_details: z.object({ reason: z.string() }).nullish(),
+          incomplete_details: z.object({ reason: z.union([z.string(), z.record(z.any())]) }).nullish(),
           usage: usageSchema,
         }),
       ),
@@ -1322,7 +1322,7 @@ const errorChunkSchema = z.object({
 const responseFinishedChunkSchema = z.object({
   type: z.enum(["response.completed", "response.incomplete"]),
   response: z.object({
-    incomplete_details: z.object({ reason: z.string() }).nullish(),
+    incomplete_details: z.object({ reason: z.union([z.string(), z.record(z.any())]) }).nullish(),
     usage: usageSchema,
     service_tier: z.string().nullish(),
   }),
