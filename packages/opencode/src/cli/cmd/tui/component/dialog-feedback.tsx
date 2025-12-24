@@ -15,6 +15,9 @@ export function DialogFeedback(props: { onClose: () => void }) {
   const [errorMsg, setErrorMsg] = createSignal("")
   const [focused, setFocused] = createSignal<"textarea" | "button">("textarea")
 
+  // Note: Global keybinds are automatically disabled when dialog.stack.length > 0
+  // (see CommandProvider in dialog-command.tsx)
+
   useKeyboard((evt) => {
     if (evt.name === "escape") {
       props.onClose()
