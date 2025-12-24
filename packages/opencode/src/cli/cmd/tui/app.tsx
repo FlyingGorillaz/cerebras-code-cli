@@ -16,6 +16,7 @@ import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
+import { DialogFeedback } from "./component/dialog-feedback"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
 import { DialogSessionList } from "@tui/component/dialog-session-list"
@@ -397,6 +398,14 @@ function App() {
       value: "help.show",
       onSelect: () => {
         dialog.replace(() => <DialogHelp />)
+      },
+      category: "System",
+    },
+    {
+      title: "Send feedback",
+      value: "feedback.send",
+      onSelect: () => {
+        dialog.replace(() => <DialogFeedback onClose={() => dialog.clear()} />)
       },
       category: "System",
     },
