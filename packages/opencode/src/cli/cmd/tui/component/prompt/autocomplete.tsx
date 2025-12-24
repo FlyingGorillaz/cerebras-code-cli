@@ -290,11 +290,6 @@ export function Autocomplete(props: {
         onSelect: () => command.trigger("session.new"),
       },
       {
-        display: "/login",
-        description: "Authenticate with Cerebras",
-        onSelect: () => command.trigger("cerebras.login", "prompt"),
-      },
-      {
         display: "/models",
         description: "list models",
         onSelect: () => command.trigger("model.list"),

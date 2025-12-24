@@ -109,8 +109,6 @@ export function Session() {
     return messages().findLast((x) => x.role === "assistant" && !x.time.completed)?.id
   })
 
-  const loginLock = createMemo(() => kv.get("login_lock", false))
-
   const lastAssistant = createMemo(() => {
     return messages().findLast((x) => x.role === "assistant")
   })
@@ -946,30 +944,21 @@ export function Session() {
                 )}
               </For>
             </scrollbox>
-            <Show
-              when={!loginLock()}
-              fallback={
-                <box flexShrink={0} padding={1}>
-                  <text fg={theme.textMuted}>Login in progress… Check your browser.</text>
-                </box>
-              }
-            >
-              <box flexShrink={0}>
-                <Prompt
-                  ref={(r) => {
-                    prompt = r
-                    promptRef.set(r)
-                  }}
-                  disabled={permissions().length > 0}
-                  onSubmit={() => {
-                    toBottom()
-                  }}
-                  sessionID={route.sessionID}
-                />
-              </box>
-              <Show when={!sidebarVisible()}>
-                <Footer />
-              </Show>
+            <box flexShrink={0}>
+              <Prompt
+                ref={(r) => {
+                  prompt = r
+                  promptRef.set(r)
+                }}
+                disabled={permissions().length > 0}
+                onSubmit={() => {
+                  toBottom()
+                }}
+                sessionID={route.sessionID}
+              />
+            </box>
+            <Show when={!sidebarVisible()}>
+              <Footer />
             </Show>
           </Show>
           <Toast />
