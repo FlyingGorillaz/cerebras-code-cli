@@ -1,9 +1,11 @@
 import { type Accessor, createMemo, Match, Show, Switch } from "solid-js"
 import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
+import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
-import { SplitBorder } from "@tui/component/border"
+import { SplitBorder, EmptyBorder } from "@tui/component/border"
 import type { AssistantMessage, Session } from "@opencode-ai/sdk/v2"
+import { useDirectory } from "../../context/directory"
 import { useKeybind } from "../../context/keybind"
 
 const Title = (props: { session: Accessor<Session> }) => {
@@ -15,65 +17,18 @@ const Title = (props: { session: Accessor<Session> }) => {
   )
 }
 
-// Compact cache indicator for header
-const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
-  const { theme } = useTheme()
-
-  const cacheStats = createMemo(() => {
-    const assistants = props.messages().filter((m) => m.role === "assistant") as AssistantMessage[]
-    let totalCachedTokens = 0
-    let totalPromptTokens = 0
-    for (const msg of assistants) {
-      const cached = msg.tokens.cache.read
-      const total = msg.tokens.input + cached
-      totalCachedTokens += cached
-      totalPromptTokens += total
-    }
-    const hitRate = totalPromptTokens > 0 ? (totalCachedTokens / totalPromptTokens) * 100 : 0
-    return { hitRate, hasData: totalPromptTokens > 0 }
-  })
-
-  const pieIndicator = createMemo(() => {
-    const rate = cacheStats().hitRate
-    if (rate >= 87.5) return "●"
-    if (rate >= 62.5) return "◕"
-    if (rate >= 37.5) return "◑"
-    if (rate >= 12.5) return "◔"
-    return "○"
-  })
-
-  const rateColor = createMemo(() => {
-    const rate = cacheStats().hitRate
-    if (rate >= 70) return theme.success
-    if (rate >= 40) return theme.warning
-    return theme.error
-  })
-
-  return (
-    <Show when={cacheStats().hasData}>
-      <text fg={theme.textMuted} flexShrink={0}>
-        <span style={{ fg: rateColor() }}>{pieIndicator()}</span> {cacheStats().hitRate.toFixed(0)}%
-      </text>
-    </Show>
-  )
-}
-
 const ContextInfo = (props: {
   context: Accessor<string | undefined>
   usage: Accessor<{ total: number; min1: number; hour1: number; day1: number }>
-  messages: Accessor<any[]>
 }) => {
   const { theme } = useTheme()
   return (
-    <box flexDirection="row" gap={1} flexShrink={0}>
-      <CacheIndicator messages={props.messages} />
-      <Show when={props.context()}>
-        <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
-          • {props.context()} • Req: {props.usage().total} (1m {props.usage().min1} / 1h {props.usage().hour1} / 24h{" "}
-          {props.usage().day1})
-        </text>
-      </Show>
-    </box>
+    <Show when={props.context()}>
+      <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
+        {props.context()} • Requests: {props.usage().total} (1m {props.usage().min1} / 1h {props.usage().hour1} / 24h{" "}
+        {props.usage().day1})
+      </text>
+    </Show>
   )
 }
 
@@ -143,13 +98,13 @@ export function Header() {
                 Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
               </text>
               <box flexGrow={1} flexShrink={1} />
-              <ContextInfo context={context} usage={usage} messages={messages} />
+              <ContextInfo context={context} usage={usage} />
             </box>
           </Match>
           <Match when={true}>
             <box flexDirection="row" justifyContent="space-between" gap={1}>
               <Title session={session} />
-              <ContextInfo context={context} usage={usage} messages={messages} />
+              <ContextInfo context={context} usage={usage} />
             </box>
             <Show when={shareEnabled()}>
               <box flexDirection="row" justifyContent="space-between" gap={1}>
