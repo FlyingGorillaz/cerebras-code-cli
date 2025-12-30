@@ -15,6 +15,13 @@ import { useDirectory } from "../../context/directory"
 const LOW_CACHE_HIT_THRESHOLD = 40
 const CONSECUTIVE_LOW_COUNT = 3
 
+// Convert percentage (0-100) to block character (8 levels)
+function percentToBar(percent: number): string {
+  const blocks = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+  const index = Math.round((percent / 100) * 8)
+  return blocks[Math.min(8, Math.max(0, index))]
+}
+
 // Visual representation of cache hit rate
 function CacheVisual(props: { 
   hitRate: number
@@ -25,35 +32,12 @@ function CacheVisual(props: {
   const { theme } = useTheme()
 
   // Progress bar using block characters
-  const barWidth = 16
+  const barWidth = 20
   const filledBlocks = createMemo(() => Math.round((props.hitRate / 100) * barWidth))
   const progressBar = createMemo(() => {
     const filled = filledBlocks()
     const empty = barWidth - filled
     return "█".repeat(filled) + "░".repeat(empty)
-  })
-
-  // Rolling sparkline - last 10 messages as vertical bars
-  const sparkline = createMemo(() => {
-    const rates = props.recentRates.slice(-10)
-    if (rates.length === 0) return ""
-    
-    // Use block characters at different heights for bad/ok/good
-    return rates.map(rate => {
-      if (rate >= 70) return "▆"  // High (good)
-      if (rate >= 40) return "▃"  // Medium (ok)
-      return "▁"  // Low (bad)
-    }).join("")
-  })
-
-  // Colors for sparkline characters
-  const sparklineColors = createMemo(() => {
-    const rates = props.recentRates.slice(-10)
-    return rates.map(rate => {
-      if (rate >= 70) return theme.success
-      if (rate >= 40) return theme.warning
-      return theme.error
-    })
   })
 
   // Pie/wheel indicator using circle segments
@@ -74,6 +58,29 @@ function CacheVisual(props: {
     return theme.error
   })
 
+  // Get color for a rate
+  const getRateColor = (rate: number) => {
+    if (rate >= 70) return theme.success
+    if (rate >= 40) return theme.warning
+    return theme.error
+  }
+
+  // Last 10 rates as a memo for proper reactivity
+  const recentRates = createMemo(() => {
+    const rates = props.recentRates || []
+    return rates.slice(-10)
+  })
+
+  // Pre-compute the sparkline to avoid For reactivity issues
+  const sparkline = createMemo(() => {
+    return recentRates().map((rate, i) => ({
+      key: i,
+      rate,
+      char: percentToBar(rate),
+      color: getRateColor(rate),
+    }))
+  })
+
   return (
     <>
       {/* Pie indicator with percentage */}
@@ -83,18 +90,16 @@ function CacheVisual(props: {
           {props.hitRate.toFixed(1)}% hit rate
         </text>
       </box>
-      {/* Progress bar with sparkline */}
+      {/* Progress bar with sparkline bar chart */}
       <box flexDirection="row" gap={1}>
         <text>
           <span style={{ fg: rateColor() }}>{progressBar()}</span>
         </text>
         <text>
-          <For each={props.recentRates.slice(-10)}>
-            {(rate) => {
-              const char = rate >= 70 ? "▆" : rate >= 40 ? "▃" : "▁"
-              const color = rate >= 70 ? theme.success : rate >= 40 ? theme.warning : theme.error
-              return <span style={{ fg: color }}>{char}</span>
-            }}
+          <For each={sparkline()}>
+            {(item) => (
+              <span style={{ fg: item.color }}>{item.char}</span>
+            )}
           </For>
         </text>
       </box>
