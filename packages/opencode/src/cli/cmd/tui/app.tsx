@@ -516,6 +516,14 @@ function App() {
       message,
       duration: 5000,
     })
+
+    // For non-retryable errors (not rate limits/overloads), prompt user to report
+    const isRetryable = error && typeof error === "object" && error.data?.isRetryable === true
+    if (!isRetryable) {
+      setTimeout(() => {
+        dialog.replace(() => <DialogFeedback onClose={() => dialog.clear()} />)
+      }, 500)
+    }
   })
 
   event.on(Installation.Event.Updated.type, (evt) => {
