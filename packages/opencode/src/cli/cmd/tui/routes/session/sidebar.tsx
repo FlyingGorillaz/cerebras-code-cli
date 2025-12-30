@@ -16,16 +16,44 @@ const LOW_CACHE_HIT_THRESHOLD = 40
 const CONSECUTIVE_LOW_COUNT = 3
 
 // Visual representation of cache hit rate
-function CacheVisual(props: { hitRate: number; cachedTokens: number; promptTokens: number }) {
+function CacheVisual(props: { 
+  hitRate: number
+  cachedTokens: number
+  promptTokens: number
+  recentRates: number[]  // Last 10 message hit rates
+}) {
   const { theme } = useTheme()
 
   // Progress bar using block characters
-  const barWidth = 20
+  const barWidth = 16
   const filledBlocks = createMemo(() => Math.round((props.hitRate / 100) * barWidth))
   const progressBar = createMemo(() => {
     const filled = filledBlocks()
     const empty = barWidth - filled
     return "█".repeat(filled) + "░".repeat(empty)
+  })
+
+  // Rolling sparkline - last 10 messages as vertical bars
+  const sparkline = createMemo(() => {
+    const rates = props.recentRates.slice(-10)
+    if (rates.length === 0) return ""
+    
+    // Use block characters at different heights for bad/ok/good
+    return rates.map(rate => {
+      if (rate >= 70) return "▆"  // High (good)
+      if (rate >= 40) return "▃"  // Medium (ok)
+      return "▁"  // Low (bad)
+    }).join("")
+  })
+
+  // Colors for sparkline characters
+  const sparklineColors = createMemo(() => {
+    const rates = props.recentRates.slice(-10)
+    return rates.map(rate => {
+      if (rate >= 70) return theme.success
+      if (rate >= 40) return theme.warning
+      return theme.error
+    })
   })
 
   // Pie/wheel indicator using circle segments
@@ -55,10 +83,21 @@ function CacheVisual(props: { hitRate: number; cachedTokens: number; promptToken
           {props.hitRate.toFixed(1)}% hit rate
         </text>
       </box>
-      {/* Progress bar */}
-      <text>
-        <span style={{ fg: rateColor() }}>{progressBar()}</span>
-      </text>
+      {/* Progress bar with sparkline */}
+      <box flexDirection="row" gap={1}>
+        <text>
+          <span style={{ fg: rateColor() }}>{progressBar()}</span>
+        </text>
+        <text>
+          <For each={props.recentRates.slice(-10)}>
+            {(rate) => {
+              const char = rate >= 70 ? "▆" : rate >= 40 ? "▃" : "▁"
+              const color = rate >= 70 ? theme.success : rate >= 40 ? theme.warning : theme.error
+              return <span style={{ fg: color }}>{char}</span>
+            }}
+          </For>
+        </text>
+      </box>
       {/* Token counts */}
       <text fg={theme.textMuted}>
         {props.cachedTokens.toLocaleString()} / {props.promptTokens.toLocaleString()} tokens
@@ -232,6 +271,7 @@ export function Sidebar(props: { sessionID: string }) {
                   hitRate={parseFloat(cacheStats().hitRate)}
                   cachedTokens={cacheStats().cachedTokens}
                   promptTokens={cacheStats().promptTokens}
+                  recentRates={perMessageCacheRates()}
                 />
               </box>
             </Show>
