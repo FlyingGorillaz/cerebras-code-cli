@@ -29,6 +29,11 @@ import { DialogAlert } from "./ui/dialog-alert"
 import { ToastProvider, useToast } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
+import { SessionStatus } from "@/session/status"
+
+// Rate limit game state
+let isInRetryState = false
+let rateLimitHandlerRegistered = false
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
@@ -534,6 +539,35 @@ function App() {
       message: `OpenCode v${evt.properties.version} is available. Run 'opencode upgrade' to update manually.`,
       duration: 10000,
     })
+  })
+
+  // Rate limit game - track retry state, open game on SPACE press
+  if (!rateLimitHandlerRegistered) {
+    rateLimitHandlerRegistered = true
+    
+    event.on(SessionStatus.Event.Status.type, (evt) => {
+      const { status } = evt.properties
+      const wasInRetry = isInRetryState
+      isInRetryState = status.type === "retry"
+      
+      // Show toast when first entering retry
+      if (isInRetryState && !wasInRetry) {
+        toast.show({
+          variant: "info",
+          title: "🥤 Rate Limited",
+          message: "Press Ctrl+G to play a game while you wait!",
+          duration: 10000,
+        })
+      }
+    })
+  }
+
+  // Listen for Ctrl+G during rate limit to open game
+  useKeyboard((evt) => {
+    if (evt.name === "g" && evt.ctrl && isInRetryState) {
+      // Diet Coke game
+      open("https://diet-coke.netlify.app/")
+    }
   })
 
   return (
