@@ -17,6 +17,58 @@ const Title = (props: { session: Accessor<Session> }) => {
   )
 }
 
+// Compact cache indicator for header
+const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
+  const { theme } = useTheme()
+
+  const cacheStats = createMemo(() => {
+    const assistants = props.messages().filter((m) => m.role === "assistant") as AssistantMessage[]
+    let totalCachedTokens = 0
+    let totalPromptTokens = 0
+    for (const msg of assistants) {
+      const cached = msg.tokens.cache.read
+      const total = msg.tokens.input + cached
+      totalCachedTokens += cached
+      totalPromptTokens += total
+    }
+    const hitRate = totalPromptTokens > 0 ? (totalCachedTokens / totalPromptTokens) * 100 : 0
+    return { hitRate, hasData: totalPromptTokens > 0 }
+  })
+
+  // Pie/wheel indicator
+  const pieIndicator = createMemo(() => {
+    const rate = cacheStats().hitRate
+    if (rate >= 87.5) return "●"
+    if (rate >= 62.5) return "◕"
+    if (rate >= 37.5) return "◑"
+    if (rate >= 12.5) return "◔"
+    return "○"
+  })
+
+  // Minesweeper-style face indicator
+  const faceIndicator = createMemo(() => {
+    const rate = cacheStats().hitRate
+    if (rate >= 70) return "😊" // Happy - good cache
+    if (rate >= 40) return "😐" // Neutral - okay cache
+    return "😟" // Worried - bad cache
+  })
+
+  const rateColor = createMemo(() => {
+    const rate = cacheStats().hitRate
+    if (rate >= 70) return theme.success
+    if (rate >= 40) return theme.warning
+    return theme.error
+  })
+
+  return (
+    <Show when={cacheStats().hasData}>
+      <text fg={theme.textMuted} flexShrink={0}>
+        <span style={{ fg: rateColor() }}>{pieIndicator()}</span> {cacheStats().hitRate.toFixed(0)}% {faceIndicator()}
+      </text>
+    </Show>
+  )
+}
+
 const ContextInfo = (props: {
   context: Accessor<string | undefined>
   usage: Accessor<{ total: number; min1: number; hour1: number; day1: number }>

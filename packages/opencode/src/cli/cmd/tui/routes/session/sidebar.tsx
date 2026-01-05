@@ -50,6 +50,14 @@ function CacheVisual(props: {
     return "○" // Empty
   })
 
+  // Minesweeper-style face indicator
+  const faceIndicator = createMemo(() => {
+    const rate = props.hitRate
+    if (rate >= 70) return "😊" // Happy - good cache
+    if (rate >= 40) return "😐" // Neutral - okay cache
+    return "😟" // Worried - bad cache
+  })
+
   // Color based on hit rate (gradient from red to green)
   const rateColor = createMemo(() => {
     const rate = props.hitRate
@@ -83,12 +91,13 @@ function CacheVisual(props: {
 
   return (
     <>
-      {/* Pie indicator with percentage */}
+      {/* Wheel indicator with percentage and face */}
       <box flexDirection="row" gap={1}>
         <text style={{ fg: rateColor() }}>{pieIndicator()}</text>
         <text fg={theme.textMuted}>
           {props.hitRate.toFixed(1)}% hit rate
         </text>
+        <text>{faceIndicator()}</text>
       </box>
       {/* Progress bar with sparkline bar chart */}
       <box flexDirection="row" gap={1}>
