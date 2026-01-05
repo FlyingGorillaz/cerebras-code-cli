@@ -7,7 +7,19 @@ import { Installation } from "@/installation"
 
 const FEEDBACK_ENDPOINT = "https://cerebras-code-cli-feedback.kevin-taylor-d8d.workers.dev"
 
-export function DialogFeedback(props: { onClose: () => void }) {
+export interface FeedbackMetadata {
+  error?: {
+    name?: string
+    message?: string
+    data?: unknown
+  }
+  sessionID?: string
+  providerID?: string
+  modelID?: string
+  [key: string]: unknown
+}
+
+export function DialogFeedback(props: { onClose: () => void; metadata?: FeedbackMetadata }) {
   const dialog = useDialog()
   const { theme } = useTheme()
   let textarea: TextareaRenderable
@@ -55,14 +67,37 @@ export function DialogFeedback(props: { onClose: () => void }) {
 
     setStatus("sending")
     try {
+      const payload: Record<string, unknown> = {
+        message,
+        version: Installation.VERSION,
+        os: process.platform,
+      }
+
+      // Include metadata if provided - flatten for easier email formatting
+      if (props.metadata) {
+        // Flatten metadata into top-level fields for easier email display
+        if (props.metadata.error) {
+          payload.errorName = props.metadata.error.name
+          payload.errorMessage = props.metadata.error.message
+          if (props.metadata.error.data && typeof props.metadata.error.data === "object") {
+            const errorData = props.metadata.error.data as Record<string, unknown>
+            payload.errorStatusCode = errorData.statusCode
+            payload.errorIsRetryable = errorData.isRetryable
+            payload.errorResponseBody = errorData.responseBody
+          }
+        }
+        payload.sessionID = props.metadata.sessionID
+        payload.providerID = props.metadata.providerID
+        payload.modelID = props.metadata.modelID
+        
+        // Also include full metadata object for detailed debugging
+        payload.metadata = props.metadata
+      }
+
       const res = await fetch(FEEDBACK_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          version: Installation.VERSION,
-          os: process.platform,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
