@@ -4,7 +4,7 @@ import { useSync } from "@tui/context/sync"
 import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
 import { SplitBorder, EmptyBorder } from "@tui/component/border"
-import type { AssistantMessage, Session } from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, Message, Session } from "@opencode-ai/sdk/v2"
 import { useDirectory } from "../../context/directory"
 import { useKeybind } from "../../context/keybind"
 
@@ -18,7 +18,7 @@ const Title = (props: { session: Accessor<Session> }) => {
 }
 
 // Compact cache indicator for header
-const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
+const CacheIndicator = (props: { messages: Accessor<Message[]> }) => {
   const { theme } = useTheme()
 
   const cacheStats = createMemo(() => {
@@ -76,7 +76,7 @@ const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
 
 const ContextInfo = (props: {
   context: Accessor<string | undefined>
-  messages: Accessor<any[]>
+  messages: Accessor<Message[]>
 }) => {
   const { theme } = useTheme()
   return (
