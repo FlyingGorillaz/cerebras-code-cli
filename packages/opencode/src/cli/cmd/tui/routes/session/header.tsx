@@ -35,6 +35,7 @@ const CacheIndicator = (props: { messages: Accessor<Message[]> }) => {
     return { hitRate, hasData: totalPromptTokens > 0 }
   })
 
+  // Pie/wheel indicator
   const pieIndicator = createMemo(() => {
     const rate = cacheStats().hitRate
     if (rate >= 87.5) return "●"
@@ -42,6 +43,14 @@ const CacheIndicator = (props: { messages: Accessor<Message[]> }) => {
     if (rate >= 37.5) return "◑"
     if (rate >= 12.5) return "◔"
     return "○"
+  })
+
+  // Minesweeper-style face indicator
+  const faceIndicator = createMemo(() => {
+    const rate = cacheStats().hitRate
+    if (rate >= 70) return "😊" // Happy - good cache
+    if (rate >= 40) return "😐" // Neutral - okay cache
+    return "😟" // Worried - bad cache
   })
 
   const rateColor = createMemo(() => {

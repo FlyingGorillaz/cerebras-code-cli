@@ -16,7 +16,7 @@ import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
-import { DialogFeedback } from "./component/dialog-feedback"
+import { DialogFeedback, type FeedbackMetadata } from "./component/dialog-feedback"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
 import { DialogSessionList } from "@tui/component/dialog-session-list"
@@ -29,6 +29,11 @@ import { DialogAlert } from "./ui/dialog-alert"
 import { ToastProvider, useToast } from "./ui/toast"
 import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
+import { SessionStatus } from "@/session/status"
+
+// Rate limit game state
+let isInRetryState = false
+let rateLimitHandlerRegistered = false
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
@@ -516,6 +521,51 @@ function App() {
       message,
       duration: 5000,
     })
+
+    // For non-retryable errors (not rate limits/overloads), prompt user to report
+    const isRetryable = error && typeof error === "object" && error.data?.isRetryable === true
+    if (!isRetryable) {
+      // Gather metadata for feedback form
+      const currentModel = local.model.current()
+      
+      // Extract error information
+      let errorName: string | undefined
+      let errorMessage: string | undefined
+      let errorData: unknown
+      
+      if (error && typeof error === "object") {
+        errorName = error.name
+        if (error.data && typeof error.data === "object") {
+          errorMessage = "message" in error.data && typeof error.data.message === "string"
+            ? error.data.message
+            : undefined
+          // Include full error data but ensure it's serializable
+          errorData = {
+            ...error.data,
+            // Ensure statusCode, isRetryable, etc. are included
+            statusCode: "statusCode" in error.data ? error.data.statusCode : undefined,
+            isRetryable: "isRetryable" in error.data ? error.data.isRetryable : undefined,
+            responseHeaders: "responseHeaders" in error.data ? error.data.responseHeaders : undefined,
+            responseBody: "responseBody" in error.data ? error.data.responseBody : undefined,
+          }
+        }
+      }
+      
+      const metadata: FeedbackMetadata = {
+        error: errorName ? {
+          name: errorName,
+          message: errorMessage,
+          data: errorData,
+        } : undefined,
+        sessionID: evt.properties.sessionID,
+        providerID: currentModel?.providerID,
+        modelID: currentModel?.modelID,
+      }
+
+      setTimeout(() => {
+        dialog.replace(() => <DialogFeedback onClose={() => dialog.clear()} metadata={metadata} />)
+      }, 500)
+    }
   })
 
   event.on(Installation.Event.Updated.type, (evt) => {
@@ -534,6 +584,35 @@ function App() {
       message: `OpenCode v${evt.properties.version} is available. Run 'opencode upgrade' to update manually.`,
       duration: 10000,
     })
+  })
+
+  // Rate limit game - track retry state, open game on SPACE press
+  if (!rateLimitHandlerRegistered) {
+    rateLimitHandlerRegistered = true
+    
+    event.on(SessionStatus.Event.Status.type, (evt) => {
+      const { status } = evt.properties
+      const wasInRetry = isInRetryState
+      isInRetryState = status.type === "retry"
+      
+      // Show toast when first entering retry
+      if (isInRetryState && !wasInRetry) {
+        toast.show({
+          variant: "info",
+          title: "🥤 Rate Limited",
+          message: "Press Ctrl+G to play a game while you wait!",
+          duration: 10000,
+        })
+      }
+    })
+  }
+
+  // Listen for Ctrl+G during rate limit to open game
+  useKeyboard((evt) => {
+    if (evt.name === "g" && evt.ctrl && isInRetryState) {
+      // Diet Coke game
+      open("https://diet-coke.netlify.app/")
+    }
   })
 
   return (
