@@ -4,7 +4,7 @@ import { useSync } from "@tui/context/sync"
 import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
 import { SplitBorder, EmptyBorder } from "@tui/component/border"
-import type { AssistantMessage, Session } from "@opencode-ai/sdk/v2"
+import type { AssistantMessage, Message, Session } from "@opencode-ai/sdk/v2"
 import { useDirectory } from "../../context/directory"
 import { useKeybind } from "../../context/keybind"
 
@@ -18,7 +18,7 @@ const Title = (props: { session: Accessor<Session> }) => {
 }
 
 // Compact cache indicator for header
-const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
+const CacheIndicator = (props: { messages: Accessor<Message[]> }) => {
   const { theme } = useTheme()
 
   const cacheStats = createMemo(() => {
@@ -60,27 +60,43 @@ const CacheIndicator = (props: { messages: Accessor<any[]> }) => {
     return theme.error
   })
 
+  // Progress bar using block characters
+  const barWidth = 12
+  const filledBlocks = createMemo(() => Math.round((cacheStats().hitRate / 100) * barWidth))
+  const progressBar = createMemo(() => {
+    const filled = filledBlocks()
+    const empty = barWidth - filled
+    return "█".repeat(filled) + "░".repeat(empty)
+  })
+
   return (
     <Show when={cacheStats().hasData}>
-      <text fg={theme.textMuted} flexShrink={0}>
-        <span style={{ fg: rateColor() }}>{pieIndicator()}</span> {cacheStats().hitRate.toFixed(0)}% {faceIndicator()}
-      </text>
+      <box flexDirection="row" gap={1} flexShrink={0} alignItems="center">
+        <text fg={theme.textMuted} flexShrink={0}>
+          <span style={{ fg: rateColor() }}>{pieIndicator()}</span> {cacheStats().hitRate.toFixed(0)}%
+        </text>
+        <text flexShrink={0}>
+          <span style={{ fg: rateColor() }}>{progressBar()}</span>
+        </text>
+      </box>
     </Show>
   )
 }
 
 const ContextInfo = (props: {
   context: Accessor<string | undefined>
-  usage: Accessor<{ total: number; min1: number; hour1: number; day1: number }>
+  messages: Accessor<Message[]>
 }) => {
   const { theme } = useTheme()
   return (
-    <Show when={props.context()}>
-      <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
-        {props.context()} • Requests: {props.usage().total} (1m {props.usage().min1} / 1h {props.usage().hour1} / 24h{" "}
-        {props.usage().day1})
-      </text>
-    </Show>
+    <box flexDirection="row" gap={1} flexShrink={0}>
+      <CacheIndicator messages={props.messages} />
+      <Show when={props.context()}>
+        <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
+          • {props.context()}
+        </text>
+      </Show>
+    </box>
   )
 }
 
@@ -90,23 +106,6 @@ export function Header() {
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
   const shareEnabled = createMemo(() => sync.data.config.share !== "disabled")
-
-  const usage = createMemo(() => {
-    const now = Date.now()
-    const assistants = messages().filter((m) => m.role === "assistant")
-    const total = assistants.length
-    const countWithin = (ms: number) =>
-      assistants.filter((m) => {
-        const t = m.time?.completed ?? m.time?.updated ?? m.time?.created ?? 0
-        return now - t <= ms
-      }).length
-    return {
-      total,
-      min1: countWithin(60_000),
-      hour1: countWithin(60 * 60_000),
-      day1: countWithin(24 * 60 * 60_000),
-    }
-  })
 
   const context = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
@@ -150,13 +149,13 @@ export function Header() {
                 Next <span style={{ fg: theme.textMuted }}>{keybind.print("session_child_cycle")}</span>
               </text>
               <box flexGrow={1} flexShrink={1} />
-              <ContextInfo context={context} usage={usage} />
+              <ContextInfo context={context} messages={messages} />
             </box>
           </Match>
           <Match when={true}>
             <box flexDirection="row" justifyContent="space-between" gap={1}>
               <Title session={session} />
-              <ContextInfo context={context} usage={usage} />
+              <ContextInfo context={context} messages={messages} />
             </box>
             <Show when={shareEnabled()}>
               <box flexDirection="row" justifyContent="space-between" gap={1}>

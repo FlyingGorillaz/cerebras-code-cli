@@ -149,7 +149,7 @@ export function Sidebar(props: { sessionID: string }) {
     const total = assistants.length
     const countWithin = (ms: number) =>
       assistants.filter((m) => {
-        const t = m.time?.completed ?? m.time?.updated ?? m.time?.created ?? 0
+        const t = m.time?.completed ?? m.time?.created ?? 0
         return now - t <= ms
       }).length
     return {
