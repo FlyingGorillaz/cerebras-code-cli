@@ -10,6 +10,10 @@
   <em>Fork of <a href="https://github.com/sst/opencode">OpenCode</a>, adapted for Cerebras's lightning-fast inference.</em>
 </p>
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="Cerebras Code CLI Screenshot" width="700">
+</p>
+
 ---
 
 ## Installation
