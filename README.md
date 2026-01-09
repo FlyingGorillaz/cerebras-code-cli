@@ -1,8 +1,14 @@
-# Cerebras Code CLI
+<p align="center">
+  <img src="assets/cerebras-logo.png" alt="Cerebras" width="400">
+</p>
 
-**The blazing-fast AI coding agent for the terminal — powered by Cerebras inference.**
+<h1 align="center">Cerebras Code CLI</h1>
 
-> 🍴 *Fork of [OpenCode](https://github.com/sst/opencode), adapted for Cerebras's lightning-fast inference.*
+<p align="center"><strong>The blazing-fast AI coding agent for the terminal — powered by Cerebras inference.</strong></p>
+
+<p align="center">
+  <em>Fork of <a href="https://github.com/sst/opencode">OpenCode</a>, adapted for Cerebras's lightning-fast inference.</em>
+</p>
 
 ---
 
@@ -12,7 +18,11 @@
 git clone https://github.com/kevint-cerebras/cerebras-code-cli.git
 cd cerebras-code-cli
 bun install
-cd packages/opencode
+```
+
+## Usage
+
+```bash
 bun dev
 ```
 
