@@ -47,10 +47,4 @@ Switch with `Tab`:
 
 ---
 
-## Team
-
-Kevin · Isaac · Daniel · Arihant
-
----
-
 <p align="center"><strong>Built with ⚡ by Cerebras</strong></p>
