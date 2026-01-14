@@ -12,6 +12,7 @@ import { SessionRetry } from "./retry"
 import { SessionStatus } from "./status"
 import { Plugin } from "@/plugin"
 import type { Provider } from "@/provider/provider"
+import { Telemetry } from "@/telemetry"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -34,6 +35,7 @@ export namespace SessionProcessor {
     sessionID: string
     model: Provider.Model
     abort: AbortSignal
+    conversationTurns?: number
   }) {
     const toolcalls: Record<string, MessageV2.ToolPart> = {}
     let snapshot: string | undefined
@@ -268,6 +270,41 @@ export namespace SessionProcessor {
                     cost: usage.cost,
                   })
                   await Session.updateMessage(input.assistantMessage)
+
+                  // Track telemetry for this step with session-level totals
+                  // Compute cumulative session totals (like the sidebar displays)
+                  const allMessages = await Session.messages({ sessionID: input.sessionID })
+                  let sessionTotalCachedTokens = 0
+                  let sessionTotalPromptTokens = 0
+                  let sessionTotalOutputTokens = 0
+                  for (const msg of allMessages) {
+                    if (msg.info.role === "assistant") {
+                      const tokens = msg.info.tokens
+                      sessionTotalCachedTokens += tokens.cache.read
+                      sessionTotalPromptTokens += tokens.input + tokens.cache.read
+                      sessionTotalOutputTokens += tokens.output
+                    }
+                  }
+
+                  Telemetry.trackFromUsage({
+                    sessionID: input.sessionID,
+                    providerID: input.model.providerID,
+                    modelID: input.model.id,
+                    tokens: {
+                      input: usage.tokens.input,
+                      output: usage.tokens.output,
+                      reasoning: usage.tokens.reasoning,
+                      cache: { read: usage.tokens.cache.read },
+                    },
+                    conversationTurns: input.conversationTurns ?? 0,
+                    finishReason: value.finishReason,
+                    sessionTotals: {
+                      cachedTokens: sessionTotalCachedTokens,
+                      promptTokens: sessionTotalPromptTokens,
+                      outputTokens: sessionTotalOutputTokens,
+                    },
+                  })
+
                   if (snapshot) {
                     const patch = await Snapshot.patch(snapshot)
                     if (patch.files.length) {

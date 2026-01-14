@@ -1,0 +1,25 @@
+# Wrangler configuration for the telemetry Cloudflare worker
+# 
+# Setup steps:
+# 1. Create D1 database: wrangler d1 create opencode-telemetry
+# 2. Update database_id below with the ID from step 1
+# 3. Run migrations: wrangler d1 execute opencode-telemetry --file=./telemetry-schema.sql -c wrangler-telemetry.toml --remote
+# 4. Deploy: wrangler deploy -c wrangler-telemetry.toml
+
+name = "opencode-telemetry"
+main = "cloudflare-worker-telemetry.js"
+compatibility_date = "2024-01-01"
+
+# D1 database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "opencode-telemetry"
+database_id = ""  # Set via: wrangler d1 list
+
+# Environment-specific overrides
+[env.production]
+# Production-specific settings
+
+[env.staging]
+# Staging environment
+name = "opencode-telemetry-staging"
