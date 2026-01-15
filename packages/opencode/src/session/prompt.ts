@@ -443,6 +443,8 @@ export namespace SessionPrompt {
         messages: msgs,
         agent,
       })
+      // Count conversation turns (user messages) for telemetry
+      const conversationTurns = msgs.filter((m) => m.info.role === "user").length
       const processor = SessionProcessor.create({
         assistantMessage: (await Session.updateMessage({
           id: Identifier.ascending("message"),
@@ -470,6 +472,7 @@ export namespace SessionPrompt {
         sessionID: sessionID,
         model,
         abort,
+        conversationTurns,
       })
       const system = await resolveSystemPrompt({
         model,
