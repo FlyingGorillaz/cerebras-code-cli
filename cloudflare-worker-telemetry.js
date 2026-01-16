@@ -120,6 +120,7 @@ async function logTelemetry(db, data) {
     sessionID,
     providerID,
     modelID,
+    apiKeyHash,
     
     // Per-step token metrics
     inputTokens = 0,
@@ -149,6 +150,7 @@ async function logTelemetry(db, data) {
       session_id,
       provider_id,
       model_id,
+      api_key_hash,
       input_tokens,
       output_tokens,
       reasoning_tokens,
@@ -162,11 +164,12 @@ async function logTelemetry(db, data) {
       conversation_turns,
       finish_reason,
       timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     sessionID || null,
     providerID || null,
     modelID || null,
+    apiKeyHash || null,
     inputTokens,
     outputTokens,
     reasoningTokens,
@@ -192,6 +195,7 @@ async function logTelemetryBatch(db, entries) {
       session_id,
       provider_id,
       model_id,
+      api_key_hash,
       input_tokens,
       output_tokens,
       reasoning_tokens,
@@ -205,7 +209,7 @@ async function logTelemetryBatch(db, entries) {
       conversation_turns,
       finish_reason,
       timestamp
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const batch = entries.map(data => {
@@ -214,6 +218,7 @@ async function logTelemetryBatch(db, entries) {
       data.sessionID || null,
       data.providerID || null,
       data.modelID || null,
+      data.apiKeyHash || null,
       data.inputTokens || 0,
       data.outputTokens || 0,
       data.reasoningTokens || 0,

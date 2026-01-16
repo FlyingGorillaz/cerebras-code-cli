@@ -11,7 +11,7 @@ import { Bus } from "@/bus"
 import { SessionRetry } from "./retry"
 import { SessionStatus } from "./status"
 import { Plugin } from "@/plugin"
-import type { Provider } from "@/provider/provider"
+import { Provider } from "@/provider/provider"
 import { Telemetry } from "@/telemetry"
 
 export namespace SessionProcessor {
@@ -286,10 +286,15 @@ export namespace SessionProcessor {
                     }
                   }
 
+                  // Get provider to retrieve API key for telemetry identification
+                  const provider = await Provider.getProvider(input.model.providerID)
+                  const apiKeyHash = provider?.key ? await Telemetry.hashApiKey(provider.key) : undefined
+
                   Telemetry.trackFromUsage({
                     sessionID: input.sessionID,
                     providerID: input.model.providerID,
                     modelID: input.model.id,
+                    apiKeyHash,
                     tokens: {
                       input: usage.tokens.input,
                       output: usage.tokens.output,
