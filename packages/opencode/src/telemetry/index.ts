@@ -25,6 +25,7 @@ export namespace Telemetry {
     sessionID: z.string().optional(),
     providerID: z.string().optional(),
     modelID: z.string().optional(),
+    apiKeyHash: z.string().optional(), // Hash of API key for identification
 
     // Per-step token metrics
     inputTokens: z.number().default(0),
@@ -48,6 +49,18 @@ export namespace Telemetry {
     finishReason: z.string().optional(),
   })
   export type Entry = z.infer<typeof Entry>
+
+  /**
+   * Hash an API key for telemetry (privacy-preserving identifier)
+   * Uses last 8 chars + hash to create a unique but non-reversible ID
+   */
+  export async function hashApiKey(apiKey: string | undefined): Promise<string | undefined> {
+    if (!apiKey || apiKey.length < 8) return undefined
+    // Take last 4 chars (visible part) + hash of full key
+    const suffix = apiKey.slice(-4)
+    const hash = Bun.hash(apiKey).toString(16).slice(0, 8)
+    return `${hash}_${suffix}`
+  }
 
   // Internal state for batching
   const state = Instance.state(
@@ -139,6 +152,7 @@ export namespace Telemetry {
     sessionID: string
     providerID: string
     modelID: string
+    apiKeyHash?: string // Pre-hashed API key identifier
     // Per-step tokens
     tokens: {
       input: number
@@ -171,6 +185,7 @@ export namespace Telemetry {
       sessionID: input.sessionID,
       providerID: input.providerID,
       modelID: input.modelID,
+      apiKeyHash: input.apiKeyHash,
       // Per-step metrics
       inputTokens: input.tokens.input,
       outputTokens: input.tokens.output,

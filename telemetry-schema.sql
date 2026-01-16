@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS telemetry_logs (
   session_id TEXT,
   provider_id TEXT,
   model_id TEXT,
+  api_key_hash TEXT,
   
   -- Per-step token metrics
   input_tokens INTEGER DEFAULT 0,
@@ -39,6 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp ON telemetry_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_telemetry_provider ON telemetry_logs(provider_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_model ON telemetry_logs(provider_id, model_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_session ON telemetry_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_telemetry_api_key_hash ON telemetry_logs(api_key_hash);
 
 -- Daily aggregates table for faster historical queries
 CREATE TABLE IF NOT EXISTS telemetry_daily_aggregates (
