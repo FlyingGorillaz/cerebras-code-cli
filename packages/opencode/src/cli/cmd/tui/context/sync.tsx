@@ -24,6 +24,7 @@ import type { Snapshot } from "@/snapshot"
 import { useExit } from "./exit"
 import { batch, onMount } from "solid-js"
 import { Log } from "@/util/log"
+import { RateLimit } from "@/ratelimit"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -62,6 +63,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       }
       formatter: FormatterStatus[]
       vcs: VcsInfo | undefined
+      ratelimit: {
+        [providerID: string]: RateLimit.Info
+      }
     }>({
       provider_next: {
         all: [],
@@ -86,6 +90,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       mcp: {},
       formatter: [],
       vcs: undefined,
+      ratelimit: {},
     })
 
     const sdk = useSDK()
@@ -246,6 +251,14 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         case "vcs.branch.updated": {
           setStore("vcs", { branch: event.properties.branch })
           break
+        }
+      }
+
+      // Handle ratelimit.update separately since it's not in generated SDK types yet
+      if ((event.type as string) === "ratelimit.update") {
+        const props = event.properties as unknown as { providerID?: string; info?: RateLimit.Info }
+        if (props.providerID && props.info) {
+          setStore("ratelimit", props.providerID, props.info)
         }
       }
     })

@@ -13,6 +13,7 @@ import { Env } from "../env"
 import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
 import { iife } from "@/util/iife"
+import { RateLimit } from "@/ratelimit"
 
 // Direct imports for bundled providers
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
@@ -781,11 +782,23 @@ export namespace Provider {
           opts.signal = combined
         }
 
-        return fetchFn(input, {
+        const response = await fetchFn(input, {
           ...opts,
           // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
           timeout: false,
         })
+
+        // Capture rate limit headers from response
+        try {
+          const rateLimitInfo = RateLimit.parseHeaders(response.headers, model.providerID)
+          if (rateLimitInfo) {
+            RateLimit.setLatest(model.providerID, rateLimitInfo)
+          }
+        } catch {
+          // Ignore errors parsing rate limit headers
+        }
+
+        return response
       }
 
       // Special case: google-vertex-anthropic uses a subpath import
