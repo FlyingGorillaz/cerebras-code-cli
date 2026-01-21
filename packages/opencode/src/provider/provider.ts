@@ -935,7 +935,13 @@ export namespace Provider {
       }
     }
 
-    // Check if opencode provider is available before using it
+    // Check if Cerebras provider is available before using it (Cerebras Code CLI default)
+    const cerebrasProvider = await state().then((state) => state.providers["cerebras"])
+    if (cerebrasProvider && cerebrasProvider.models["zai-glm-4.7"]) {
+      return getModel("cerebras", "zai-glm-4.7")
+    }
+
+    // Fallback to opencode provider
     const opencodeProvider = await state().then((state) => state.providers["opencode"])
     if (opencodeProvider && opencodeProvider.models["gpt-5-nano"]) {
       return getModel("opencode", "gpt-5-nano")
@@ -944,7 +950,7 @@ export namespace Provider {
     return undefined
   }
 
-  const priority = ["gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
+  const priority = ["zai-glm-4.7", "gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
   export function sort(models: Model[]) {
     return sortBy(
       models,

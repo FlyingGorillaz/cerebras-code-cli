@@ -178,6 +178,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
         }
 
+        // Default to Cerebras ZAI-GLM-4.7 for Cerebras Code CLI
+        const cerebrasDefault = { providerID: "cerebras", modelID: "zai-glm-4.7" }
+        if (isModelValid(cerebrasDefault)) {
+          return cerebrasDefault
+        }
+
         const provider = sync.data.provider[0]
         if (!provider) return undefined
         const defaultModel = sync.data.provider_default[provider.id]
