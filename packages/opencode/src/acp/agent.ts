@@ -768,7 +768,7 @@ export namespace ACP {
         return undefined
       })
 
-    return model ?? { providerID: "opencode", modelID: "big-pickle" }
+    return model ?? { providerID: "cerebras", modelID: "zai-glm-4.7" }
   }
 
   function parseUri(
