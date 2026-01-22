@@ -226,6 +226,33 @@ export function Sidebar(props: { sessionID: string }) {
     return sync.data.ratelimit[currentModel.providerID]
   })
 
+  // Determine API key tier based on rate limits
+  // Free: 10 RPM, 60K TPM, 1M TPD
+  // Pro: 50 RPM, 1M TPM, 24M TPD
+  // Max: 120 RPM, 1.5M TPM, 120M TPD
+  // PayGo: Higher than Max
+  const apiTier = createMemo(() => {
+    const info = rateLimitInfo()
+    if (!info) return null
+    
+    // Find minute limits
+    const requestsPerMin = info.requestLimits?.find(w => w.window === "minute")?.limit
+    const tokensPerMin = info.tokenLimits?.find(w => w.window === "minute")?.limit
+    const tokensPerDay = info.tokenLimits?.find(w => w.window === "day")?.limit
+    
+    if (requestsPerMin === undefined) return null
+    
+    if (requestsPerMin <= 10) {
+      return { name: "Free Tier", color: theme.textMuted }
+    } else if (requestsPerMin <= 50) {
+      return { name: "Pro Plan", color: theme.success }
+    } else if (requestsPerMin <= 120) {
+      return { name: "Max Plan", color: theme.warning }
+    } else {
+      return { name: "PayGo", color: theme.accent }
+    }
+  })
+
 
   const cacheStats = createMemo(() => {
     const assistants = messages().filter((m) => m.role === "assistant") as AssistantMessage[]
@@ -346,9 +373,16 @@ export function Sidebar(props: { sessionID: string }) {
             </Show>
             <Show when={rateLimitInfo()}>
               <box>
-                <text fg={theme.text}>
-                  <b>Rate Limits</b>
-                </text>
+                <box flexDirection="row" gap={1}>
+                  <text fg={theme.text}>
+                    <b>Rate Limits</b>
+                  </text>
+                  <Show when={apiTier()}>
+                    <text style={{ fg: apiTier()!.color }}>
+                      [{apiTier()!.name}]
+                    </text>
+                  </Show>
+                </box>
                 <box flexDirection="row" gap={2}>
                   {/* Tokens column */}
                   <box flexGrow={1} gap={1}>
