@@ -68,6 +68,55 @@ function RateLimitRow(props: {
   )
 }
 
+function ContextProgressBar(props: {
+  used: number
+  limit: number
+}) {
+  const { theme } = useTheme()
+  
+  const percentUsed = createMemo(() => 
+    props.limit > 0 ? Math.min(100, (props.used / props.limit) * 100) : 0
+  )
+  
+  const percentRemaining = createMemo(() => 100 - percentUsed())
+  
+  const barWidth = 20
+  const filledBlocks = createMemo(() => Math.round((percentUsed() / 100) * barWidth))
+  const progressBar = createMemo(() => {
+    const filled = filledBlocks()
+    const empty = barWidth - filled
+    return "█".repeat(filled) + "░".repeat(empty)
+  })
+  
+  // Color based on remaining (green = plenty left, red = almost full)
+  const barColor = createMemo(() => {
+    const remaining = percentRemaining()
+    if (remaining >= 50) return theme.success
+    if (remaining >= 20) return theme.warning
+    return theme.error
+  })
+  
+  const formatTokens = (tokens: number): string => {
+    if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
+    if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`
+    return tokens.toLocaleString()
+  }
+  
+  return (
+    <box>
+      <box flexDirection="row" gap={1}>
+        <text>
+          <span style={{ fg: barColor() }}>{progressBar()}</span>
+        </text>
+        <text fg={theme.textMuted}>{percentUsed().toFixed(0)}%</text>
+      </box>
+      <text fg={theme.textMuted}>
+        {formatTokens(props.used)} / {formatTokens(props.limit)}
+      </text>
+    </box>
+  )
+}
+
 // Visual representation of cache hit rate
 function CacheVisual(props: { 
   hitRate: number
@@ -210,12 +259,16 @@ export function Sidebar(props: { sessionID: string }) {
   const context = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
     if (!last) return
-    const total =
-      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
+    // Context sent = input tokens + cached tokens (what was actually sent to the API)
+    const used = last.tokens.input + last.tokens.cache.read
     const model = sync.data.provider.find((x) => x.id === last.providerID)?.models[last.modelID]
+    // Default to 128K (131072) for Cerebras GLM-4.7
+    const limit = model?.limit.context || 131072
+    const percentage = Math.min(100, Math.round((used / limit) * 100))
     return {
-      tokens: total.toLocaleString(),
-      percentage: model?.limit.context ? Math.round((total / model.limit.context) * 100) : null,
+      used,
+      limit,
+      percentage,
     }
   })
 
@@ -352,8 +405,14 @@ export function Sidebar(props: { sessionID: string }) {
               <text fg={theme.text}>
                 <b>Context</b>
               </text>
-              <text fg={theme.textMuted}>{context()?.tokens ?? 0} tokens</text>
-              <text fg={theme.textMuted}>{context()?.percentage ?? 0}% used</text>
+              <Show when={context()} fallback={
+                <text fg={theme.textMuted}>No requests yet</text>
+              }>
+                <ContextProgressBar
+                  used={context()!.used}
+                  limit={context()!.limit}
+                />
+              </Show>
               <text fg={theme.textMuted}>
                 Requests: {usage().total} (1m {usage().min1} / 1h {usage().hour1} / 24h {usage().day1})
               </text>
