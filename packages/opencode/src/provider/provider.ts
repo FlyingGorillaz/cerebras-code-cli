@@ -99,6 +99,9 @@ export namespace Provider {
         autoload: false,
         options: {
           baseURL: "https://api.cerebras.ai/v1",
+          headers: {
+            "X-Cerebras-3rd-Party-Integration": "cli",
+          },
         },
       }
     },
