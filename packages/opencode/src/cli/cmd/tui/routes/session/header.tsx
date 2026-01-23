@@ -126,8 +126,6 @@ export function Header() {
   return (
     <box flexShrink={0}>
       <box
-        paddingTop={1}
-        paddingBottom={1}
         paddingLeft={2}
         paddingRight={1}
         {...SplitBorder}
