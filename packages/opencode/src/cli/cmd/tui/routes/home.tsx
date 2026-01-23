@@ -16,9 +16,9 @@ import { Installation } from "@/installation"
 let once = false
 
 const STARTER_PROMPTS = [
-  "Make a snake game",
+  "Make a snake game in Python",
   "Organize my downloads folder",
-  "Do research on recent AI news",
+  "Do research on recent AI news and generate a report",
 ]
 
 export function Home() {

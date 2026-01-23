@@ -9,6 +9,7 @@ import { Flag } from "@/flag/flag"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderList } from "@tui/component/dialog-provider"
 import { CerebrasOnboarding } from "@tui/component/cerebras-onboarding"
+import { QuickStartOnboarding } from "@tui/component/quickstart-onboarding"
 import { SDKProvider, useSDK } from "@tui/context/sdk"
 import { SyncProvider, useSync } from "@tui/context/sync"
 import { LocalProvider, useLocal } from "@tui/context/local"
@@ -38,6 +39,7 @@ let rateLimitHandlerRegistered = false
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
+import { Identifier } from "@/id/id"
 import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
@@ -170,7 +172,8 @@ function App() {
   const local = useLocal()
   const kv = useKV()
   const command = useCommandDialog()
-  const { event } = useSDK()
+  const sdk = useSDK()
+  const { event } = sdk
   const toast = useToast()
   const { theme, mode, setMode } = useTheme()
   const sync = useSync()
@@ -179,6 +182,7 @@ function App() {
   const [bannerNotification, setBannerNotification] = createSignal<import("@/notification").Notification | null>(null)
   const [fullscreenNotification, setFullscreenNotification] = createSignal<import("@/notification").Notification | null>(null)
   const [showOnboarding, setShowOnboarding] = createSignal(false)
+  const [showQuickStart, setShowQuickStart] = createSignal(false)
 
   createEffect(() => {
     console.log(JSON.stringify(route.data))
@@ -284,6 +288,57 @@ function App() {
       setShowOnboarding(true)
     }
   })
+
+  // Show quick start after Cerebras onboarding (or if already set up)
+  let quickStartTriggered = false
+  createEffect(() => {
+    if (quickStartTriggered) return
+    if (showOnboarding()) return // Wait for Cerebras onboarding to finish
+    if (sync.status !== "complete") return
+    if (!kv.ready) return
+    
+    const hasSeenQuickStart = kv.get("hasSeenQuickStart", false)
+    const cerebrasConnected = sync.data.provider.some((p) => p.id === "cerebras")
+    
+    // Show quick start for users who just completed Cerebras setup or already have it
+    if (cerebrasConnected && !hasSeenQuickStart) {
+      quickStartTriggered = true
+      setShowQuickStart(true)
+    }
+  })
+
+  // Handle quick start prompt selection - submit to new session
+  const handleQuickStartSelect = async (prompt: string) => {
+    setShowQuickStart(false)
+    
+    // Create a new session and submit the prompt
+    const selectedModel = local.model.current()
+    if (!selectedModel) return
+    
+    const sessionID = await sdk.client.session.create({}).then((x) => x.data!.id)
+    const messageID = Identifier.ascending("message")
+    
+    // Submit the prompt
+    sdk.client.session.prompt({
+      sessionID,
+      ...selectedModel,
+      messageID,
+      agent: local.agent.current().name,
+      model: selectedModel,
+      parts: [
+        {
+          id: Identifier.ascending("part"),
+          type: "text",
+          text: prompt,
+        },
+      ],
+    })
+    
+    // Navigate to the session
+    setTimeout(() => {
+      route.navigate({ type: "session", sessionID })
+    }, 50)
+  }
 
   const connected = useConnected()
   command.register(() => [
@@ -675,36 +730,46 @@ function App() {
         }
       >
         <Show
-          when={!fullscreenNotification()}
+          when={!showQuickStart()}
           fallback={
-            <FullscreenNotification
-              notification={fullscreenNotification()!}
-              onClose={() => {
-                Notification.markSeen(fullscreenNotification()!.id)
-                setFullscreenNotification(null)
-              }}
+            <QuickStartOnboarding
+              onSelect={handleQuickStartSelect}
+              onSkip={() => setShowQuickStart(false)}
             />
           }
         >
-          <Show when={bannerNotification()}>
-            {(notif) => (
-              <NotificationBanner
-                notification={notif()}
-                onDismiss={() => {
-                  Notification.markSeen(notif().id)
-                  setBannerNotification(null)
+          <Show
+            when={!fullscreenNotification()}
+            fallback={
+              <FullscreenNotification
+                notification={fullscreenNotification()!}
+                onClose={() => {
+                  Notification.markSeen(fullscreenNotification()!.id)
+                  setFullscreenNotification(null)
                 }}
               />
-            )}
+            }
+          >
+            <Show when={bannerNotification()}>
+              {(notif) => (
+                <NotificationBanner
+                  notification={notif()}
+                  onDismiss={() => {
+                    Notification.markSeen(notif().id)
+                    setBannerNotification(null)
+                  }}
+                />
+              )}
+            </Show>
+            <Switch>
+              <Match when={route.data.type === "home"}>
+                <Home />
+              </Match>
+              <Match when={route.data.type === "session"}>
+                <Session />
+              </Match>
+            </Switch>
           </Show>
-          <Switch>
-            <Match when={route.data.type === "home"}>
-              <Home />
-            </Match>
-            <Match when={route.data.type === "session"}>
-              <Session />
-            </Match>
-          </Switch>
         </Show>
       </Show>
     </box>
