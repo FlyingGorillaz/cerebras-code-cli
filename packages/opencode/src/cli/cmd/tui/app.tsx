@@ -31,7 +31,7 @@ import { ExitProvider, useExit } from "./context/exit"
 import { Session as SessionApi } from "@/session"
 import { SessionStatus } from "@/session/status"
 
-// Rate limit game state
+// Rate limit state
 let isInRetryState = false
 let rateLimitHandlerRegistered = false
 import { TuiEvent } from "./event"
@@ -516,56 +516,57 @@ function App() {
       return String(error)
     })()
 
+    // Don't show error toast for retryable errors (rate limits) - we show a custom PayGo toast instead
+    const isRetryable = error && typeof error === "object" && error.data?.isRetryable === true
+    if (isRetryable) return
+
     toast.show({
       variant: "error",
       message,
       duration: 5000,
     })
 
-    // For non-retryable errors (not rate limits/overloads), prompt user to report
-    const isRetryable = error && typeof error === "object" && error.data?.isRetryable === true
-    if (!isRetryable) {
-      // Gather metadata for feedback form
-      const currentModel = local.model.current()
-      
-      // Extract error information
-      let errorName: string | undefined
-      let errorMessage: string | undefined
-      let errorData: unknown
-      
-      if (error && typeof error === "object") {
-        errorName = error.name
-        if (error.data && typeof error.data === "object") {
-          errorMessage = "message" in error.data && typeof error.data.message === "string"
-            ? error.data.message
-            : undefined
-          // Include full error data but ensure it's serializable
-          errorData = {
-            ...error.data,
-            // Ensure statusCode, isRetryable, etc. are included
-            statusCode: "statusCode" in error.data ? error.data.statusCode : undefined,
-            isRetryable: "isRetryable" in error.data ? error.data.isRetryable : undefined,
-            responseHeaders: "responseHeaders" in error.data ? error.data.responseHeaders : undefined,
-            responseBody: "responseBody" in error.data ? error.data.responseBody : undefined,
-          }
+    // For non-retryable errors, prompt user to report
+    // Gather metadata for feedback form
+    const currentModel = local.model.current()
+    
+    // Extract error information
+    let errorName: string | undefined
+    let errorMessage: string | undefined
+    let errorData: unknown
+    
+    if (error && typeof error === "object") {
+      errorName = error.name
+      if (error.data && typeof error.data === "object") {
+        errorMessage = "message" in error.data && typeof error.data.message === "string"
+          ? error.data.message
+          : undefined
+        // Include full error data but ensure it's serializable
+        errorData = {
+          ...error.data,
+          // Ensure statusCode, isRetryable, etc. are included
+          statusCode: "statusCode" in error.data ? error.data.statusCode : undefined,
+          isRetryable: "isRetryable" in error.data ? error.data.isRetryable : undefined,
+          responseHeaders: "responseHeaders" in error.data ? error.data.responseHeaders : undefined,
+          responseBody: "responseBody" in error.data ? error.data.responseBody : undefined,
         }
       }
-      
-      const metadata: FeedbackMetadata = {
-        error: errorName ? {
-          name: errorName,
-          message: errorMessage,
-          data: errorData,
-        } : undefined,
-        sessionID: evt.properties.sessionID,
-        providerID: currentModel?.providerID,
-        modelID: currentModel?.modelID,
-      }
-
-      setTimeout(() => {
-        dialog.replace(() => <DialogFeedback onClose={() => dialog.clear()} metadata={metadata} />)
-      }, 500)
     }
+    
+    const metadata: FeedbackMetadata = {
+      error: errorName ? {
+        name: errorName,
+        message: errorMessage,
+        data: errorData,
+      } : undefined,
+      sessionID: evt.properties.sessionID,
+      providerID: currentModel?.providerID,
+      modelID: currentModel?.modelID,
+    }
+
+    setTimeout(() => {
+      dialog.replace(() => <DialogFeedback onClose={() => dialog.clear()} metadata={metadata} />)
+    }, 500)
   })
 
   event.on(Installation.Event.Updated.type, (evt) => {
@@ -586,7 +587,7 @@ function App() {
     })
   })
 
-  // Rate limit game - track retry state, open game on SPACE press
+  // Rate limit handling - track retry state, suggest PayGo with exponential backoff (persisted across sessions)
   if (!rateLimitHandlerRegistered) {
     rateLimitHandlerRegistered = true
     
@@ -597,21 +598,44 @@ function App() {
       
       // Show toast when first entering retry
       if (isInRetryState && !wasInRetry) {
-        toast.show({
-          variant: "info",
-          title: "🥤 Rate Limited",
-          message: "Press Ctrl+G to play a game while you wait!",
-          duration: 10000,
-        })
+        // Get persisted values from KV store (defaults: count=0, nextAt=1)
+        const rateLimitCount = kv.get("rateLimitCount", 0) + 1
+        const nextPayGoSuggestionAt = kv.get("nextPayGoSuggestionAt", 1)
+        
+        // Update the count
+        kv.set("rateLimitCount", rateLimitCount)
+        
+        // Show PayGo suggestion with exponential backoff (1st, 2nd, 4th, 8th, etc)
+        if (rateLimitCount >= nextPayGoSuggestionAt) {
+          kv.set("nextPayGoSuggestionAt", nextPayGoSuggestionAt * 2) // Double for next time
+          toast.show({
+            variant: "warning",
+            title: "Rate Limited",
+            message: "Press Ctrl+U to upgrade to PayGo for unlimited requests",
+            duration: 60000,
+          })
+        } else {
+          toast.show({
+            variant: "info",
+            title: "🥤 Rate Limited",
+            message: "Press Ctrl+G to play a game while you wait!",
+            duration: 30000,
+          })
+        }
       }
     })
   }
 
-  // Listen for Ctrl+G during rate limit to open game
+  // Listen for Ctrl+G during rate limit to open game, Ctrl+U for upgrade
   useKeyboard((evt) => {
-    if (evt.name === "g" && evt.ctrl && isInRetryState) {
-      // Diet Coke game
-      open("https://diet-coke.netlify.app/")
+    if (isInRetryState) {
+      if (evt.name === "g" && evt.ctrl) {
+        // Diet Coke game
+        open("https://diet-coke.netlify.app/")
+      } else if (evt.name === "u" && evt.ctrl) {
+        // Open PayGo upgrade page
+        open("https://cloud.cerebras.ai?utm-source=cli-paygo")
+      }
     }
   })
 
