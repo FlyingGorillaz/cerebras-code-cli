@@ -582,6 +582,7 @@ function App() {
     // Don't show error toast for retryable errors (rate limits) - we show a custom PayGo modal instead
     const isRetryable = error && typeof error === "object" && "data" in error && 
       error.data && typeof error.data === "object" && "isRetryable" in error.data && error.data.isRetryable === true
+
     if (isRetryable) {
       // Track rate limit hits per session
       const sessionID = evt.properties.sessionID
@@ -684,22 +685,10 @@ function App() {
         
         // Update the count
         kv.set("rateLimitCount", rateLimitCount)
-        
-        // Show PayGo suggestion with exponential backoff (1st, 2nd, 4th, 8th, etc)
-        if (rateLimitCount >= nextPayGoSuggestionAt) {
-          kv.set("nextPayGoSuggestionAt", nextPayGoSuggestionAt * 2) // Double for next time
-          toast.show({
-            variant: "warning",
-            title: "Rate Limited",
-            message: "Press Ctrl+U to upgrade to PayGo for unlimited requests",
-            duration: 60000,
-          })
-        } else {
-          toast.show({
-            variant: "info",
-            title: "🥤 Rate Limited",
-            message: "Press Ctrl+G to play a game while you wait!",
-            duration: 30000,
+
+        if (rateLimitCount >= 10 && !kv.get("rate_limit_modal_dismissed", false)) {
+          DialogRateLimit.showAuto(dialog, () => {
+            kv.set("rate_limit_modal_dismissed", true)
           })
         }
       }
