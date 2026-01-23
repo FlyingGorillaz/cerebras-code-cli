@@ -10,6 +10,8 @@ import type { AssistantMessage } from "@opencode-ai/sdk/v2"
 import { Installation } from "@/installation"
 import { useKeybind } from "../../context/keybind"
 import { useDirectory } from "../../context/directory"
+import { useDialog } from "../../ui/dialog"
+import { DialogRateLimit } from "../../component/dialog-rate-limit"
 
 // Threshold for low cache hit rate warning
 const LOW_CACHE_HIT_THRESHOLD = 40
@@ -227,6 +229,7 @@ export function Sidebar(props: { sessionID: string }) {
   const { theme } = useTheme()
   const toast = useToast()
   const local = useLocal()
+  const dialog = useDialog()
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])
@@ -400,6 +403,25 @@ export function Sidebar(props: { sessionID: string }) {
       >
         <scrollbox flexGrow={1}>
           <box flexShrink={0} gap={1} paddingRight={1}>
+            {/* Rate limit help banner - shown when rate limits are available */}
+            <Show when={rateLimitInfo()}>
+              <box
+                backgroundColor={theme.backgroundElement}
+                paddingTop={1}
+                paddingBottom={1}
+                paddingLeft={2}
+                paddingRight={2}
+                onMouseUp={() => DialogRateLimit.show(dialog)}
+              >
+                <box flexDirection="row" gap={1} alignItems="center">
+                  <text fg={theme.warning}>⚡</text>
+                  <text fg={theme.text}>
+                    <b>Why am I getting rate limited?</b>
+                  </text>
+                </box>
+                <text fg={theme.textMuted}>Click to learn more</text>
+              </box>
+            </Show>
             <box>
               <text fg={theme.text}>
                 <b>{session().title}</b>

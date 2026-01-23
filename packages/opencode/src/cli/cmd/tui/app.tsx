@@ -36,6 +36,8 @@ import { SessionStatus } from "@/session/status"
 // Rate limit state
 let isInRetryState = false
 let rateLimitHandlerRegistered = false
+// Track rate limit hits per session for paywall modal
+const sessionRateLimitCounts = new Map<string, number>()
 import { TuiEvent } from "./event"
 import { KVProvider, useKV } from "./context/kv"
 import { Provider } from "@/provider/provider"
@@ -47,6 +49,7 @@ import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { Notification } from "@/notification"
 import { FullscreenNotification } from "@tui/component/dialog-notification"
 import { NotificationBanner } from "@tui/component/notification-banner"
+import { DialogRateLimit } from "@tui/component/dialog-rate-limit"
 
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
@@ -576,9 +579,26 @@ function App() {
       return String(error)
     })()
 
-    // Don't show error toast for retryable errors (rate limits) - we show a custom PayGo toast instead
-    const isRetryable = error && typeof error === "object" && error.data?.isRetryable === true
-    if (isRetryable) return
+    // Don't show error toast for retryable errors (rate limits) - we show a custom PayGo modal instead
+    const isRetryable = error && typeof error === "object" && "data" in error && 
+      error.data && typeof error.data === "object" && "isRetryable" in error.data && error.data.isRetryable === true
+    if (isRetryable) {
+      // Track rate limit hits per session
+      const sessionID = evt.properties.sessionID
+      if (sessionID) {
+        const currentCount = sessionRateLimitCounts.get(sessionID) || 0
+        const newCount = currentCount + 1
+        sessionRateLimitCounts.set(sessionID, newCount)
+        
+        // Show paywall modal on second rate limit hit (unless dismissed forever)
+        if (newCount === 2 && !kv.get("rate_limit_modal_dismissed", false)) {
+          DialogRateLimit.showAuto(dialog, () => {
+            kv.set("rate_limit_modal_dismissed", true)
+          })
+        }
+      }
+      return
+    }
 
     toast.show({
       variant: "error",
