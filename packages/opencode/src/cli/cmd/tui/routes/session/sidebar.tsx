@@ -33,11 +33,12 @@ function RateLimitRow(props: {
   // Clamp remaining to be >= 0 and <= limit to handle edge cases
   // (e.g., first message hitting rate limits where remaining could be 0 or negative)
   const safeRemaining = createMemo(() => 
-    Math.max(0, Math.min(props.remaining, props.limit))
+    Math.max(0, Math.min(props.remaining ?? 0, props.limit ?? 0))
   )
   
+  // If limit is 0 or missing, show 0% (empty bar) not 100% (full bar)
   const percentRemaining = createMemo(() => 
-    props.limit > 0 ? (safeRemaining() / props.limit) * 100 : 100
+    props.limit > 0 ? (safeRemaining() / props.limit) * 100 : 0
   )
   
   // Bar width fits in column
