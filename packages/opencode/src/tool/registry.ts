@@ -10,6 +10,7 @@ import { TodoWriteTool, TodoReadTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
+import { SkillTool } from "./skill"
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
@@ -94,6 +95,7 @@ export namespace ToolRegistry {
       EditTool,
       WriteTool,
       TaskTool,
+      SkillTool,
       WebFetchTool,
       TodoWriteTool,
       TodoReadTool,
