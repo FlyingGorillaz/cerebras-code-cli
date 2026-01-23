@@ -184,16 +184,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return cerebrasDefault
         }
 
-        const provider = sync.data.provider[0]
-        if (!provider) return undefined
-        const defaultModel = sync.data.provider_default[provider.id]
-        const firstModel = Object.values(provider.models)[0]
-        const model = defaultModel ?? firstModel?.id
-        if (!model) return undefined
-        return {
-          providerID: provider.id,
-          modelID: model,
-        }
+        // For Cerebras Code CLI, don't fall back to other providers - show nothing until Cerebras is connected
+        // This prevents showing "big pickle" or "gemini 3 pro" on first load
+        return undefined
       })
 
       const currentModel = createMemo(() => {
@@ -222,8 +215,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const value = currentModel()
           if (!value) {
             return {
-              provider: "Connect a provider",
-              model: "No provider selected",
+              provider: "Cerebras",
+              model: "Loading...",
             }
           }
           const provider = sync.data.provider.find((x) => x.id === value.providerID)
