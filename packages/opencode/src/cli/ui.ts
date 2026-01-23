@@ -3,11 +3,14 @@ import { EOL } from "os"
 import { NamedError } from "@opencode-ai/util/error"
 
 export namespace UI {
+  // Cerebras orange: RGB(240, 90, 40)
+  const CEREBRAS_ORANGE = "\x1b[38;2;240;90;40m"
+  const RESET = "\x1b[0m"
+  
   const LOGO = [
-    [`                    `, `             ▄     `],
-    [`█▀▀█ █▀▀█ █▀▀█ █▀▀▄ `, `█▀▀▀ █▀▀█ █▀▀█ █▀▀█`],
-    [`█░░█ █░░█ █▀▀▀ █░░█ `, `█░░░ █░░█ █░░█ █▀▀▀`],
-    [`▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ `, `▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`],
+    [`${CEREBRAS_ORANGE}█▀▀▀${RESET} `, `█▀▀▀ █▀▀█ █▀▀▀ █▀▀▄ █▀▀█ █▀▀█ █▀▀▀`],
+    [`${CEREBRAS_ORANGE}█░░░${RESET} `, `█▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ █▀▀▄ █▀▀█ ▀▀▀█`],
+    [`${CEREBRAS_ORANGE}▀▀▀▀${RESET} `, `▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀  ▀  ▀ ▀  ▀ ▀▀▀▀`],
   ]
 
   export const CancelledError = NamedError.create("UICancelledError", z.void())
@@ -50,9 +53,7 @@ export namespace UI {
     const result = []
     for (const row of LOGO) {
       if (pad) result.push(pad)
-      result.push(Bun.color("gray", "ansi"))
       result.push(row[0])
-      result.push("\x1b[0m")
       result.push(row[1])
       result.push(EOL)
     }
