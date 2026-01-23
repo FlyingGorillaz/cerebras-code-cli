@@ -8,6 +8,7 @@ import { Global } from "@/global"
 import { Flag } from "@/flag/flag"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderList } from "@tui/component/dialog-provider"
+import { CerebrasOnboarding } from "@tui/component/cerebras-onboarding"
 import { SDKProvider, useSDK } from "@tui/context/sdk"
 import { SyncProvider, useSync } from "@tui/context/sync"
 import { LocalProvider, useLocal } from "@tui/context/local"
@@ -41,7 +42,6 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 
-import { cerebrasLogin } from "@/provider/cerebras/login"
 import { Notification } from "@/notification"
 import { FullscreenNotification } from "@tui/component/dialog-notification"
 import { NotificationBanner } from "@tui/component/notification-banner"
@@ -178,6 +178,7 @@ function App() {
   const promptRef = usePromptRef()
   const [bannerNotification, setBannerNotification] = createSignal<import("@/notification").Notification | null>(null)
   const [fullscreenNotification, setFullscreenNotification] = createSignal<import("@/notification").Notification | null>(null)
+  const [showOnboarding, setShowOnboarding] = createSignal(false)
 
   createEffect(() => {
     console.log(JSON.stringify(route.data))
@@ -225,7 +226,19 @@ function App() {
       }
     })
 
-    // Check for notifications
+  })
+
+  // Check for notifications (but not for first-time users who will see onboarding)
+  let notificationChecked = false
+  createEffect(() => {
+    if (notificationChecked) return
+    if (!kv.ready) return
+    
+    // Skip notifications for first-time users - they'll see onboarding instead
+    const hasSeenOnboarding = kv.get("hasSeenCerebrasOnboarding", false)
+    if (!hasSeenOnboarding) return
+    
+    notificationChecked = true
     Notification.check().then((notif) => {
       if (!notif) return
 
@@ -256,16 +269,21 @@ function App() {
     }
   })
 
-  createEffect(
-    on(
-      () => sync.status === "complete" && sync.data.provider.length === 0,
-      (isEmpty, wasEmpty) => {
-        // only trigger when we transition into an empty-provider state
-        if (!isEmpty || wasEmpty) return
-        dialog.replace(() => <DialogProviderList />)
-      },
-    ),
-  )
+  // Show Cerebras onboarding for first-time users
+  let onboardingTriggered = false
+  createEffect(() => {
+    if (onboardingTriggered) return
+    if (sync.status !== "complete") return
+    if (!kv.ready) return
+    
+    const cerebrasConnected = sync.data.provider.some((p) => p.id === "cerebras")
+    const hasSeenOnboarding = kv.get("hasSeenCerebrasOnboarding", false)
+    
+    if (!cerebrasConnected && !hasSeenOnboarding) {
+      onboardingTriggered = true
+      setShowOnboarding(true)
+    }
+  })
 
   const connected = useConnected()
   command.register(() => [
@@ -464,19 +482,6 @@ function App() {
     },
   ])
 
-  createEffect(() => {
-    const currentModel = local.model.current()
-    if (!currentModel) return
-    if (currentModel.providerID === "openrouter" && !kv.get("openrouter_warning", false)) {
-      untrack(() => {
-        DialogAlert.show(
-          dialog,
-          "Warning",
-          "While openrouter is a convenient way to access LLMs your request will often be routed to subpar providers that do not work well in our testing.\n\nFor reliable access to models check out OpenCode Zen\nhttps://opencode.ai/zen",
-        ).then(() => kv.set("openrouter_warning", true))
-      })
-    }
-  })
 
   event.on(TuiEvent.CommandExecute.type, (evt) => {
     command.trigger(evt.properties.command)
@@ -640,36 +645,43 @@ function App() {
       }}
     >
       <Show
-        when={!fullscreenNotification()}
+        when={!showOnboarding()}
         fallback={
-          <FullscreenNotification
-            notification={fullscreenNotification()!}
-            onClose={() => {
-              Notification.markSeen(fullscreenNotification()!.id)
-              setFullscreenNotification(null)
-            }}
-          />
+          <CerebrasOnboarding onComplete={() => setShowOnboarding(false)} />
         }
       >
-        <Show when={bannerNotification()}>
-          {(notif) => (
-            <NotificationBanner
-              notification={notif()}
-              onDismiss={() => {
-                Notification.markSeen(notif().id)
-                setBannerNotification(null)
+        <Show
+          when={!fullscreenNotification()}
+          fallback={
+            <FullscreenNotification
+              notification={fullscreenNotification()!}
+              onClose={() => {
+                Notification.markSeen(fullscreenNotification()!.id)
+                setFullscreenNotification(null)
               }}
             />
-          )}
+          }
+        >
+          <Show when={bannerNotification()}>
+            {(notif) => (
+              <NotificationBanner
+                notification={notif()}
+                onDismiss={() => {
+                  Notification.markSeen(notif().id)
+                  setBannerNotification(null)
+                }}
+              />
+            )}
+          </Show>
+          <Switch>
+            <Match when={route.data.type === "home"}>
+              <Home />
+            </Match>
+            <Match when={route.data.type === "session"}>
+              <Session />
+            </Match>
+          </Switch>
         </Show>
-        <Switch>
-          <Match when={route.data.type === "home"}>
-            <Home />
-          </Match>
-          <Match when={route.data.type === "session"}>
-            <Session />
-          </Match>
-        </Switch>
       </Show>
     </box>
   )
