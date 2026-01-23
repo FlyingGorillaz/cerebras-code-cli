@@ -17,7 +17,7 @@ let once = false
 
 const STARTER_PROMPTS = [
   "Make a snake game",
-  "Organize my downloads",
+  "Organize my downloads folder",
   "Do research on recent AI news",
 ]
 
