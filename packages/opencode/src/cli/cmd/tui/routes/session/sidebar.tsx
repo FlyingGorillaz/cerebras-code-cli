@@ -30,15 +30,21 @@ function RateLimitRow(props: {
 }) {
   const { theme } = useTheme()
   
+  // Clamp remaining to be >= 0 and <= limit to handle edge cases
+  // (e.g., first message hitting rate limits where remaining could be 0 or negative)
+  const safeRemaining = createMemo(() => 
+    Math.max(0, Math.min(props.remaining, props.limit))
+  )
+  
   const percentRemaining = createMemo(() => 
-    props.limit > 0 ? (props.remaining / props.limit) * 100 : 100
+    props.limit > 0 ? (safeRemaining() / props.limit) * 100 : 100
   )
   
   // Bar width fits in column
   const barWidth = 10
   const filledBlocks = createMemo(() => Math.round((percentRemaining() / 100) * barWidth))
   const progressBar = createMemo(() => {
-    const filled = filledBlocks()
+    const filled = Math.max(0, Math.min(barWidth, filledBlocks()))
     const empty = barWidth - filled
     return "█".repeat(filled) + "░".repeat(empty)
   })
