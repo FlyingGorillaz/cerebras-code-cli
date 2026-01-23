@@ -18,7 +18,7 @@ let once = false
 const STARTER_PROMPTS = [
   "Make a snake game in Python",
   "Organize my downloads folder",
-  "Do research on recent AI news and generate a report",
+  "Recreate the Google landing page UI",
 ]
 
 export function Home() {

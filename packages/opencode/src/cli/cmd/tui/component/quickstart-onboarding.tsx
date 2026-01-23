@@ -5,9 +5,9 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useKV } from "../context/kv"
 
 const STARTER_PROMPTS = [
-  { prompt: "Make a snake game", icon: "🎮" },
-  { prompt: "Organize my downloads folder", icon: "📁" },
-  { prompt: "Do research on recent AI news", icon: "📰" },
+  { prompt: "Make a snake game in Python", icon: "" },
+  { prompt: "Organize my downloads folder", icon: "" },
+  { prompt: "Recreate the Google landing page UI", icon: "" },
 ] as const
 
 export function QuickStartOnboarding(props: { onSelect: (prompt: string) => void; onSkip: () => void }) {
