@@ -1018,15 +1018,13 @@ function UserMessage(props: {
               setHover(false)
             }}
             onMouseUp={props.onMouseUp}
-            paddingTop={1}
-            paddingBottom={1}
             paddingLeft={2}
             backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
             flexShrink={0}
           >
             <text fg={theme.text}>{text()?.text}</text>
             <Show when={files().length}>
-              <box flexDirection="row" paddingBottom={1} paddingTop={1} gap={1} flexWrap="wrap">
+              <box flexDirection="row" gap={1} flexWrap="wrap">
                 <For each={files()}>
                   {(file) => {
                     const bg = createMemo(() => {
@@ -1114,10 +1112,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
       <Show when={props.message.error}>
         <box
           border={["left"]}
-          paddingTop={1}
-          paddingBottom={1}
           paddingLeft={2}
-          marginTop={1}
           backgroundColor={theme.backgroundPanel}
           customBorderChars={SplitBorder.customBorderChars}
           borderColor={theme.error}
@@ -1234,11 +1229,8 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
       container === "block" || permission
         ? {
             border: permissionIndex === 0 ? (["left", "right"] as const) : (["left"] as const),
-            paddingTop: 1,
-            paddingBottom: 1,
             paddingLeft: 2,
-            marginTop: 1,
-            gap: 1,
+            gap: 0,
             backgroundColor: theme.backgroundPanel,
             customBorderChars: SplitBorder.customBorderChars,
             borderColor: permissionIndex === 0 ? theme.warning : theme.background,
