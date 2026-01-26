@@ -316,6 +316,12 @@ export function Sidebar(props: { sessionID: string }) {
     }
   })
 
+  const hasSuccessfulRequest = createMemo(() => {
+    const completedAssistants = messages().filter(
+      (m) => m.role === "assistant" && m.time.completed
+    )
+    return completedAssistants.length > 0
+  })
 
   const cacheStats = createMemo(() => {
     const assistants = messages().filter((m) => m.role === "assistant") as AssistantMessage[]
@@ -403,8 +409,8 @@ export function Sidebar(props: { sessionID: string }) {
       >
         <scrollbox flexGrow={1}>
           <box flexShrink={0} gap={1} paddingRight={1}>
-            {/* Rate limit help banner - shown when rate limits are available */}
-            <Show when={rateLimitInfo()}>
+            {/* Rate limit help banner - shown when rate limits are available and a request has been made */}
+            <Show when={rateLimitInfo() && hasSuccessfulRequest()}>
               <box
                 backgroundColor={theme.backgroundElement}
                 paddingTop={1}
@@ -459,7 +465,7 @@ export function Sidebar(props: { sessionID: string }) {
                 />
               </box>
             </Show>
-            <Show when={rateLimitInfo()}>
+            <Show when={rateLimitInfo() && hasSuccessfulRequest()}>
               <box>
                 <box flexDirection="row" gap={1}>
                   <text fg={theme.text}>
