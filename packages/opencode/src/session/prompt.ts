@@ -11,6 +11,7 @@ import { Agent } from "../agent/agent"
 import { Provider } from "../provider/provider"
 import {
   generateText,
+  generateObject,
   type ModelMessage,
   type Tool as AITool,
   tool,
@@ -269,6 +270,64 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
+      
+      // Check for switch_mode tool in the LATEST assistant message only
+      // Only trigger if auto_switch_models is enabled and we haven't already switched
+      // Read config fresh (invalidate cache first to get latest settings)
+      Config.global.reset()
+      const switchCfg = await Config.getGlobal()
+      // Explicitly check for false - undefined/true means enabled
+      const autoSwitchEnabled = switchCfg.auto_switch_models !== false
+      
+      if (autoSwitchEnabled) {
+        const latestAssistantMsg = msgs.filter((m) => m.info.role === "assistant").at(-1)
+        const switchToolCall = latestAssistantMsg?.parts.find(
+          (p) => p.type === "tool" && (p as any).tool === "switch_mode" && (p as any).state?.status === "completed"
+        ) as any
+        
+        if (switchToolCall) {
+          // Get the mode from state.input (the tool arguments)
+          const targetMode = switchToolCall.state?.input?.mode
+          const reason = switchToolCall.state?.input?.reason ?? "Mode switch requested"
+          
+          // Only switch if we're not already in the target mode
+          if (targetMode && lastUser.agent !== targetMode) {
+            // Get the model for the target mode
+            const modeModelKey = `${targetMode}_model` as keyof typeof switchCfg
+            const modeModel = (switchCfg as any)[modeModelKey] as string | undefined
+            
+            if (modeModel) {
+              log.info("switching mode via tool", { from: lastUser.agent, to: targetMode, reason })
+              
+              const targetModel = Provider.parseModel(modeModel)
+              const continueMsg = await Session.updateMessage({
+                id: Identifier.ascending("message"),
+                role: "user",
+                sessionID,
+                time: { created: Date.now() },
+                agent: targetMode,
+                model: targetModel,
+              })
+              
+              await Session.updatePart({
+                id: Identifier.ascending("part"),
+                messageID: continueMsg.id,
+                sessionID,
+                type: "text",
+                synthetic: true,
+                text: `Continue with ${targetMode} mode. ${reason}`,
+                time: { start: Date.now(), end: Date.now() },
+              })
+              
+              // Continue the loop with the new mode
+              continue
+            } else {
+              log.warn("mode switch requested but no model configured", { mode: targetMode })
+            }
+          }
+        }
+      }
+      
       if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
@@ -719,8 +778,16 @@ export namespace SessionPrompt {
       mergeDeep(await ToolRegistry.enabled(input.agent)),
       mergeDeep(input.tools ?? {}),
     )
+    
+    // Check if auto_switch_models is disabled - if so, hide the switch_mode tool
+    Config.global.reset()
+    const toolsCfg = await Config.getGlobal()
+    const autoSwitchEnabled = toolsCfg.auto_switch_models !== false
+    
     for (const item of await ToolRegistry.tools(input.model.providerID)) {
       if (Wildcard.all(item.id, enabledTools) === false) continue
+      // Hide switch_mode tool if auto-switching is disabled
+      if (item.id === "switch_mode" && !autoSwitchEnabled) continue
       const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
       tools[item.id] = tool({
         id: item.id as any,
@@ -853,6 +920,23 @@ export namespace SessionPrompt {
 
   async function createUserMessage(input: PromptInput) {
     const agent = await Agent.get(input.agent ?? "build")
+    
+    // Resolve model: check agent-specific model config
+    let resolvedModel = input.model
+    if (!resolvedModel) {
+      const cfg = await Config.get()
+      // Check for agent-specific model in config
+      const agentModelKey = `${agent.name}_model` as keyof typeof cfg
+      const agentModel = cfg[agentModelKey] as string | undefined
+      
+      if (agentModel) {
+        resolvedModel = Provider.parseModel(agentModel)
+      } else {
+        // Fall back to agent's model or last used model (main model)
+        resolvedModel = agent.model ?? (await lastModel(input.sessionID))
+      }
+    }
+    
     const info: MessageV2.Info = {
       id: input.messageID ?? Identifier.ascending("message"),
       role: "user",
@@ -863,7 +947,7 @@ export namespace SessionPrompt {
       tools: input.tools,
       system: input.system,
       agent: agent.name,
-      model: input.model ?? agent.model ?? (await lastModel(input.sessionID)),
+      model: resolvedModel,
     }
 
     const parts = await Promise.all(
@@ -1537,5 +1621,53 @@ export namespace SessionPrompt {
       .catch((error) => {
         log.error("failed to generate title", { error, model: small.id })
       })
+  }
+
+  /**
+   * Determines if a plan response is ready to hand off to the build agent.
+   * Uses a model to classify the response intent.
+   */
+  async function shouldAutoSwitchToBuild(input: {
+    responseText: string
+    providerID: string
+    modelID: string
+  }): Promise<{ shouldSwitch: boolean; reason: string }> {
+    try {
+      const small =
+        (await Provider.getSmallModel(input.providerID)) ??
+        (await Provider.getModel(input.providerID, input.modelID))
+      const language = await Provider.getLanguage(small)
+
+      const result = await generateObject({
+        model: language,
+        temperature: 0,
+        schema: z.object({
+          intent: z.enum(["execute", "question", "planning"]).describe(
+            "execute: the plan is complete and ready to implement. question: asking user for clarification or input. planning: still thinking or presenting options."
+          ),
+          reason: z.string().describe("Brief explanation of why this intent was chosen"),
+        }),
+        prompt: `Analyze this assistant response and determine its intent:
+
+<response>
+${input.responseText.slice(-3000)}
+</response>
+
+Classify the intent:
+- "execute": The response contains a complete, actionable plan ready to be implemented. The assistant is not asking questions.
+- "question": The response asks the user a question, requests clarification, or needs user input before proceeding.
+- "planning": The response is still exploring options, thinking through approaches, or presenting alternatives for the user to choose from.
+
+Return the intent classification.`,
+      })
+
+      return {
+        shouldSwitch: result.object.intent === "execute",
+        reason: result.object.reason,
+      }
+    } catch (error) {
+      log.error("auto-switch classification failed", { error })
+      return { shouldSwitch: false, reason: "Classification failed" }
+    }
   }
 }

@@ -113,6 +113,28 @@ export function Session() {
     return messages().findLast((x) => x.role === "assistant")
   })
 
+  // Sync local agent state with the latest user message's agent
+  // This handles when the backend switches modes via the switch_mode tool
+  const lastUserMessage = createMemo(() => {
+    return messages().findLast((x) => x.role === "user")
+  })
+  
+  createEffect(() => {
+    const lastUser = lastUserMessage()
+    if (lastUser?.agent && lastUser.agent !== local.agent.current().name) {
+      local.agent.set(lastUser.agent)
+      // Also update the model if configured for this agent
+      const cfg = sync.data.config as any
+      const agentModel = cfg?.[`${lastUser.agent}_model`]
+      if (agentModel) {
+        const [providerID, modelID] = agentModel.split("/")
+        if (providerID && modelID) {
+          local.model.set({ providerID, modelID }, { recent: true })
+        }
+      }
+    }
+  })
+
   const dimensions = useTerminalDimensions()
   const [sidebar, setSidebar] = createSignal<"show" | "hide" | "auto">(kv.get("sidebar", "auto"))
   const [conceal, setConceal] = createSignal(true)

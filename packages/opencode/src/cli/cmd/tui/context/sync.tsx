@@ -368,6 +368,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         },
       },
       bootstrap,
+      async refreshConfig() {
+        const config = await sdk.client.config.get({}, { throwOnError: true })
+        setStore("config", config.data!)
+      },
     }
     return result
   },
