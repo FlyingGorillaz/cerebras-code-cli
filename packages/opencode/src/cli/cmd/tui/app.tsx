@@ -704,14 +704,6 @@ function App() {
     }, 500)
   })
 
-  event.on(Installation.Event.Updated.type, (evt) => {
-    toast.show({
-      variant: "success",
-      title: "Update Complete",
-      message: `OpenCode updated to v${evt.properties.version}`,
-      duration: 5000,
-    })
-  })
 
   event.on(Installation.Event.UpdateAvailable.type, (evt) => {
     toast.show({
