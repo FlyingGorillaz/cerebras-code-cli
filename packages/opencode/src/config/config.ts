@@ -11,12 +11,15 @@ import { lazy } from "../util/lazy"
 import { NamedError } from "@opencode-ai/util/error"
 import { Flag } from "../flag/flag"
 import { Auth } from "../auth"
-import { type ParseError as JsoncParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
+import { type ParseError as JsoncParseError, applyEdits, modify, parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
 import { Instance } from "../project/instance"
 import { LSPServer } from "../lsp/server"
 import { BunProc } from "@/bun"
 import { Installation } from "@/installation"
 import { ConfigMarkdown } from "./markdown"
+import { existsSync } from "fs"
+import { Bus } from "@/bus"
+import { GlobalBus } from "@/bus/global"
 
 export namespace Config {
   const log = Log.create({ service: "config" })
@@ -577,6 +580,28 @@ export namespace Config {
         .string()
         .describe("Small model to use for tasks like title generation in the format of provider/model")
         .optional(),
+      plan_model: z
+        .string()
+        .describe("Model to use for planning/reasoning tasks in the format of provider/model")
+        .optional(),
+      build_model: z
+        .string()
+        .describe("Model to use for coding/building tasks in the format of provider/model")
+        .optional(),
+      docs_model: z
+        .string()
+        .describe("Model to use for documentation tasks in the format of provider/model")
+        .optional(),
+      auto_switch_models: z
+        .boolean()
+        .describe("Allow the model to automatically switch between modes (build/plan/docs)")
+        .optional(),
+      default_agent: z
+        .string()
+        .optional()
+        .describe(
+          "Default agent to use when none is specified. Must be a primary agent. Falls back to 'build' if not set or if the specified agent is invalid.",
+        ),
       username: z
         .string()
         .optional()
@@ -878,6 +903,105 @@ export namespace Config {
     const existing = await loadFile(filepath)
     await Bun.write(filepath, JSON.stringify(mergeDeep(existing, config), null, 2))
     await Instance.dispose()
+  }
+
+  function globalConfigFile() {
+    const candidates = ["opencode.jsonc", "opencode.json", "config.json"].map((file) =>
+      path.join(Global.Path.config, file),
+    )
+    for (const file of candidates) {
+      if (existsSync(file)) return file
+    }
+    return candidates[0]
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value)
+  }
+
+  function patchJsonc(input: string, patch: unknown, path: string[] = []): string {
+    if (!isRecord(patch)) {
+      const edits = modify(input, path, patch, {
+        formattingOptions: {
+          insertSpaces: true,
+          tabSize: 2,
+        },
+      })
+      return applyEdits(input, edits)
+    }
+
+    return Object.entries(patch).reduce((result, [key, value]) => {
+      if (value === undefined) return result
+      return patchJsonc(result, value, [...path, key])
+    }, input)
+  }
+
+  function parseConfig(text: string, filepath: string): Info {
+    const errors: JsoncParseError[] = []
+    const data = parseJsonc(text, errors, { allowTrailingComma: true })
+    if (errors.length) {
+      const lines = text.split("\n")
+      const errorDetails = errors
+        .map((e) => {
+          const beforeOffset = text.substring(0, e.offset).split("\n")
+          const line = beforeOffset.length
+          const column = beforeOffset[beforeOffset.length - 1].length + 1
+          const problemLine = lines[line - 1]
+
+          const error = `${printParseErrorCode(e.error)} at line ${line}, column ${column}`
+          if (!problemLine) return error
+
+          return `${error}\n   Line ${line}: ${problemLine}\n${"".padStart(column + 9)}^`
+        })
+        .join("\n")
+
+      throw new JsonError({
+        path: filepath,
+        message: `\n--- JSONC Input ---\n${text}\n--- Errors ---\n${errorDetails}\n--- End ---`,
+      })
+    }
+
+    const parsed = Info.safeParse(data)
+    if (parsed.success) return parsed.data
+
+    throw new InvalidError({
+      path: filepath,
+      issues: parsed.error.issues,
+    })
+  }
+
+  export async function updateGlobal(config: Info) {
+    const filepath = globalConfigFile()
+    const before = await Bun.file(filepath)
+      .text()
+      .catch((err) => {
+        if (err.code === "ENOENT") return "{}"
+        throw new JsonError({ path: filepath }, { cause: err })
+      })
+
+    if (!filepath.endsWith(".jsonc")) {
+      const existing = parseConfig(before, filepath)
+      await Bun.write(filepath, JSON.stringify(mergeDeep(existing, config), null, 2))
+    } else {
+      const next = patchJsonc(before, config)
+      parseConfig(next, filepath)
+      await Bun.write(filepath, next)
+    }
+
+    global.reset()
+    // Await disposeAll to ensure config cache is cleared before returning
+    await Instance.disposeAll().catch(() => {})
+    GlobalBus.emit("event", {
+      directory: "global",
+      payload: {
+        type: "config.updated",
+        properties: {},
+      },
+    })
+  }
+
+  export async function getGlobal() {
+    return global()
   }
 
   export async function directories() {

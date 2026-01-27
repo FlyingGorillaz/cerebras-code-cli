@@ -8,9 +8,10 @@ import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
 import { useArgs } from "../context/args"
 import { useDirectory } from "../context/directory"
-import { useRoute, useRouteData } from "@tui/context/route"
+import { useRouteData } from "@tui/context/route"
 import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
+import { useCommandDialog } from "../component/dialog-command"
 
 // TODO: what is the best way to do this?
 let once = false
@@ -27,6 +28,7 @@ export function Home() {
   const dimensions = useTerminalDimensions()
   const route = useRouteData("home")
   const promptRef = usePromptRef()
+  const command = useCommandDialog()
   const mcp = createMemo(() => Object.keys(sync.data.mcp).length > 0)
   
   // Responsive prompts: hide at < 60 width, wrap at < 90 width
@@ -39,6 +41,9 @@ export function Home() {
   const connectedMcpCount = createMemo(() => {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
+
+  // Register empty command to avoid unused variable warning
+  command.register(() => [])
 
   const Hint = (
     <Show when={connectedMcpCount() > 0}>
@@ -84,6 +89,7 @@ export function Home() {
   return (
     <>
       <box flexGrow={1} justifyContent="center" alignItems="center" paddingLeft={2} paddingRight={2} gap={1}>
+        <box height={3} />
         <Logo />
         <box width="100%" maxWidth={75} zIndex={1000} paddingTop={1}>
           <Prompt
@@ -132,7 +138,7 @@ export function Home() {
                   <span style={{ fg: theme.error }}>⊙ </span>
                 </Match>
                 <Match when={true}>
-                  <span style={{ fg: theme.success }}>⊙ </span>
+                  <span style={{ fg: connectedMcpCount() > 0 ? theme.success : theme.textMuted }}>⊙ </span>
                 </Match>
               </Switch>
               {connectedMcpCount()} MCP

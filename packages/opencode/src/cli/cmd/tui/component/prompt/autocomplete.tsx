@@ -311,9 +311,30 @@ export function Autocomplete(props: {
         onSelect: () => command.trigger("opencode.status"),
       },
       {
+        display: "/settings",
+        aliases: ["/config"],
+        description: "configure settings",
+        onSelect: () => command.trigger("opencode.settings"),
+      },
+      {
         display: "/mcp",
         description: "toggle MCPs",
         onSelect: () => command.trigger("mcp.list"),
+      },
+      {
+        display: "/build",
+        description: "switch to build mode",
+        onSelect: () => command.trigger("mode.build"),
+      },
+      {
+        display: "/plan",
+        description: "switch to plan mode",
+        onSelect: () => command.trigger("mode.plan"),
+      },
+      {
+        display: "/docs",
+        description: "switch to docs mode",
+        onSelect: () => command.trigger("mode.docs"),
       },
       {
         display: "/theme",

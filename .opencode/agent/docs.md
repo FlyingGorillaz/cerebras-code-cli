@@ -1,5 +1,6 @@
 ---
 description: ALWAYS use this when writing docs
+mode: primary
 ---
 
 You are an expert technical documentation writer

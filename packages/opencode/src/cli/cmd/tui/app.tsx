@@ -16,6 +16,7 @@ import { LocalProvider, useLocal } from "@tui/context/local"
 import { DialogModel, useConnected } from "@tui/component/dialog-model"
 import { DialogMcp } from "@tui/component/dialog-mcp"
 import { DialogStatus } from "@tui/component/dialog-status"
+import { DialogSettings } from "@tui/component/dialog-settings"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
 import { DialogHelp } from "./ui/dialog-help"
 import { DialogFeedback, type FeedbackMetadata } from "./component/dialog-feedback"
@@ -456,6 +457,59 @@ function App() {
         dialog.replace(() => <DialogStatus />)
       },
       category: "System",
+    },
+    {
+      title: "Settings",
+      value: "opencode.settings",
+      onSelect: () => {
+        dialog.replace(() => <DialogSettings />)
+      },
+      category: "System",
+    },
+    {
+      title: "Switch to Build mode",
+      value: "mode.build",
+      category: "Mode",
+      onSelect: () => {
+        local.agent.set("build")
+        const cfg = sync.data.config as any
+        if (cfg?.build_model) {
+          const [providerID, modelID] = cfg.build_model.split("/")
+          if (providerID && modelID) {
+            local.model.set({ providerID, modelID }, { recent: true })
+          }
+        }
+      },
+    },
+    {
+      title: "Switch to Plan mode",
+      value: "mode.plan",
+      category: "Mode",
+      onSelect: () => {
+        local.agent.set("plan")
+        const cfg = sync.data.config as any
+        if (cfg?.plan_model) {
+          const [providerID, modelID] = cfg.plan_model.split("/")
+          if (providerID && modelID) {
+            local.model.set({ providerID, modelID }, { recent: true })
+          }
+        }
+      },
+    },
+    {
+      title: "Switch to Docs mode",
+      value: "mode.docs",
+      category: "Mode",
+      onSelect: () => {
+        local.agent.set("docs")
+        const cfg = sync.data.config as any
+        if (cfg?.docs_model) {
+          const [providerID, modelID] = cfg.docs_model.split("/")
+          if (providerID && modelID) {
+            local.model.set({ providerID, modelID }, { recent: true })
+          }
+        }
+      },
     },
     {
       title: "Switch theme",
