@@ -1000,6 +1000,10 @@ export namespace Config {
     })
   }
 
+  export async function getGlobal() {
+    return global()
+  }
+
   export async function directories() {
     return state().then((x) => x.directories)
   }
