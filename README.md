@@ -18,6 +18,16 @@
 
 ## Installation
 
+Get started immediately by downloading it via npm and calling `cerebras-cli` in your terminal.
+
+```bash
+npm i cerebras-cli
+cerebras-cli
+```
+---
+
+## Local Development
+
 ```bash
 git clone https://github.com/kevint-cerebras/cerebras-code-cli.git
 cd cerebras-code-cli
