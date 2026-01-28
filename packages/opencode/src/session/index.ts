@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js"
 import z from "zod"
-import { type LanguageModelUsage, type ProviderMetadata } from "ai"
+import type { LanguageModelV2Usage as LanguageModelUsage, SharedV2ProviderMetadata as ProviderMetadata } from "@ai-sdk/provider"
 import { Bus } from "../bus"
 import { Config } from "../config/config"
 import { Flag } from "../flag/flag"
@@ -415,8 +415,7 @@ export namespace Session {
         cache: {
           write: safe(
             (input.metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
-              // @ts-expect-error
-              input.metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
+              (input.metadata?.["bedrock"] as Record<string, any>)?.["usage"]?.["cacheWriteInputTokens"] ??
               0) as number,
           ),
           read: safe(cachedInputTokens),

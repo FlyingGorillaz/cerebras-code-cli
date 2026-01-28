@@ -2,7 +2,15 @@ import z from "zod"
 import { Bus } from "../bus"
 import { NamedError } from "@opencode-ai/util/error"
 import { Message } from "./message"
-import { APICallError, convertToModelMessages, LoadAPIKeyError, type ModelMessage, type UIMessage } from "ai"
+import { APICallError, convertToModelMessages, LoadAPIKeyError } from "ai"
+import type { ModelMessage } from "@ai-sdk/provider-utils"
+
+// Define UIMessage interface locally to avoid tsgo's namespace interpretation
+interface UIMessage {
+  id: string
+  role: "user" | "assistant"
+  parts: unknown[]
+}
 import { Identifier } from "../id/id"
 import { LSP } from "../lsp"
 import { Snapshot } from "@/snapshot"
@@ -581,61 +589,65 @@ export namespace MessageV2 {
   }
 
   export function fromError(e: unknown, ctx: { providerID: string }) {
-    switch (true) {
-      case e instanceof DOMException && e.name === "AbortError":
-        return new MessageV2.AbortedError(
-          { message: e.message },
-          {
-            cause: e,
-          },
-        ).toObject()
-      case MessageV2.OutputLengthError.isInstance(e):
-        return e
-      case LoadAPIKeyError.isInstance(e):
-        return new MessageV2.AuthError(
-          {
-            providerID: ctx.providerID,
-            message: e.message,
-          },
-          { cause: e },
-        ).toObject()
-      case APICallError.isInstance(e):
-        const message = iife(() => {
-          let msg = e.message
-          const transformed = ProviderTransform.error(ctx.providerID, e)
-          if (transformed !== msg) {
-            return transformed
-          }
-          if (!e.responseBody || (e.statusCode && msg !== STATUS_CODES[e.statusCode])) {
-            return msg
-          }
-
-          try {
-            const body = JSON.parse(e.responseBody)
-            // try to extract common error message fields
-            const errMsg = body.message || body.error || body.error?.message
-            if (errMsg && typeof errMsg === "string") {
-              return `${msg}: ${errMsg}`
-            }
-          } catch {}
-
-          return `${msg}: ${e.responseBody}`
-        })
-
-        return new MessageV2.APIError(
-          {
-            message,
-            statusCode: e.statusCode,
-            isRetryable: e.isRetryable,
-            responseHeaders: e.responseHeaders,
-            responseBody: e.responseBody,
-          },
-          { cause: e },
-        ).toObject()
-      case e instanceof Error:
-        return new NamedError.Unknown({ message: e.toString() }, { cause: e }).toObject()
-      default:
-        return new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e })
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return new MessageV2.AbortedError(
+        { message: e.message },
+        {
+          cause: e,
+        },
+      ).toObject()
     }
+    if (MessageV2.OutputLengthError.isInstance(e)) {
+      return e
+    }
+    if (LoadAPIKeyError.isInstance(e)) {
+      const err = e as InstanceType<typeof LoadAPIKeyError>
+      return new MessageV2.AuthError(
+        {
+          providerID: ctx.providerID,
+          message: err.message,
+        },
+        { cause: err },
+      ).toObject()
+    }
+    if (APICallError.isInstance(e)) {
+      const err = e as InstanceType<typeof APICallError>
+      const message = iife(() => {
+        let msg = err.message
+        const transformed = ProviderTransform.error(ctx.providerID, err)
+        if (transformed !== msg) {
+          return transformed
+        }
+        if (!err.responseBody || (err.statusCode && msg !== STATUS_CODES[err.statusCode])) {
+          return msg
+        }
+
+        try {
+          const body = JSON.parse(err.responseBody)
+          // try to extract common error message fields
+          const errMsg = body.message || body.error || body.error?.message
+          if (errMsg && typeof errMsg === "string") {
+            return `${msg}: ${errMsg}`
+          }
+        } catch {}
+
+        return `${msg}: ${err.responseBody}`
+      })
+
+      return new MessageV2.APIError(
+        {
+          message,
+          statusCode: err.statusCode,
+          isRetryable: err.isRetryable,
+          responseHeaders: err.responseHeaders,
+          responseBody: err.responseBody,
+        },
+        { cause: err },
+      ).toObject()
+    }
+    if (e instanceof Error) {
+      return new NamedError.Unknown({ message: e.toString() }, { cause: e }).toObject()
+    }
+    return new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e })
   }
 }

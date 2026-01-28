@@ -1,4 +1,5 @@
-import type { APICallError, ModelMessage } from "ai"
+import type { ModelMessage } from "@ai-sdk/provider-utils"
+import type { APICallError } from "@ai-sdk/provider"
 import { unique } from "remeda"
 import type { JSONSchema } from "zod/v4/core"
 import type { Provider } from "./provider"
@@ -20,10 +21,11 @@ export namespace ProviderTransform {
       return msgs.map((msg) => {
         if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
           msg.content = msg.content.map((part) => {
-            if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
+            const p = part as { type: string; toolCallId?: string }
+            if ((p.type === "tool-call" || p.type === "tool-result") && "toolCallId" in p && p.toolCallId) {
               return {
                 ...part,
-                toolCallId: part.toolCallId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+                toolCallId: p.toolCallId.replace(/[^a-zA-Z0-9_-]/g, "_"),
               }
             }
             return part
@@ -40,9 +42,10 @@ export namespace ProviderTransform {
 
         if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
           msg.content = msg.content.map((part) => {
-            if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
+            const p = part as { type: string; toolCallId?: string }
+            if ((p.type === "tool-call" || p.type === "tool-result") && "toolCallId" in p && p.toolCallId) {
               // Mistral requires alphanumeric tool call IDs with exactly 9 characters
-              const normalizedId = part.toolCallId
+              const normalizedId = p.toolCallId
                 .replace(/[^a-zA-Z0-9]/g, "") // Remove non-alphanumeric characters
                 .substring(0, 9) // Take first 9 characters
                 .padEnd(9, "0") // Pad with zeros if less than 9 characters
@@ -164,11 +167,12 @@ export namespace ProviderTransform {
       if (msg.role !== "user" || !Array.isArray(msg.content)) return msg
 
       const filtered = msg.content.map((part) => {
-        if (part.type !== "file" && part.type !== "image") return part
+        const p = part as { type: string; image?: unknown; mediaType?: string; filename?: string }
+        if (p.type !== "file" && p.type !== "image") return part
 
-        const mime = part.type === "image" ? part.image.toString().split(";")[0].replace("data:", "") : part.mediaType
-        const filename = part.type === "file" ? part.filename : undefined
-        const modality = mimeToModality(mime)
+        const mime = p.type === "image" ? String(p.image).split(";")[0].replace("data:", "") : p.mediaType
+        const filename = p.type === "file" ? p.filename : undefined
+        const modality = mimeToModality(mime ?? "")
         if (!modality) return part
         if (model.capabilities.input[modality]) return part
 

@@ -12,13 +12,12 @@ import { Provider } from "../provider/provider"
 import {
   generateText,
   generateObject,
-  type ModelMessage,
-  type Tool as AITool,
   tool,
   wrapLanguageModel,
   stepCountIs,
   jsonSchema,
 } from "ai"
+import type { ModelMessage, Tool as AITool } from "@ai-sdk/provider-utils"
 import { SessionCompaction } from "./compaction"
 import { Instance } from "../project/instance"
 import { Bus } from "../bus"
@@ -580,12 +579,15 @@ export namespace SessionPrompt {
       }
 
       const result = await processor.process({
-        onError(error) {
+        onError(error: unknown) {
           log.error("stream error", {
             error,
           })
         },
-        async experimental_repairToolCall(input) {
+        async experimental_repairToolCall(input: {
+          toolCall: { toolName: string; input: string }
+          error: Error
+        }) {
           const lower = input.toolCall.toolName.toLowerCase()
           if (lower !== input.toolCall.toolName && tools[lower]) {
             log.info("repairing tool call", {
@@ -690,20 +692,20 @@ export namespace SessionPrompt {
           model: language,
           middleware: [
             {
-              async transformParams(args) {
+              async transformParams(args: { type: string; params: { prompt?: ModelMessage[]; tools?: unknown[] } }) {
                 if (args.type === "stream") {
-                  // @ts-expect-error - prompt types are compatible at runtime
-                  args.params.prompt = ProviderTransform.message(args.params.prompt, model)
+                  args.params.prompt = ProviderTransform.message(args.params.prompt as ModelMessage[], model)
                 }
                 // Transform tool schemas for provider compatibility
                 if (args.params.tools && Array.isArray(args.params.tools)) {
-                  args.params.tools = args.params.tools.map((tool: any) => {
+                  args.params.tools = args.params.tools.map((t: unknown) => {
+                    const tool = t as { inputSchema?: object }
                     // Tools at middleware level have inputSchema, not parameters
                     if (tool.inputSchema && typeof tool.inputSchema === "object") {
                       // Transform the inputSchema for provider compatibility
                       return {
                         ...tool,
-                        inputSchema: ProviderTransform.schema(model, tool.inputSchema),
+                        inputSchema: ProviderTransform.schema(model, tool.inputSchema as Record<string, unknown>),
                       }
                     }
                     // If no inputSchema, return tool unchanged
@@ -793,7 +795,7 @@ export namespace SessionPrompt {
         id: item.id as any,
         description: item.description,
         inputSchema: jsonSchema(schema as any),
-        async execute(args, options) {
+        async execute(args: unknown, options: { toolCallId: string; abortSignal?: AbortSignal }) {
           await Plugin.trigger(
             "tool.execute.before",
             {
@@ -821,7 +823,7 @@ export namespace SessionPrompt {
                     title: val.title,
                     metadata: val.metadata,
                     status: "running",
-                    input: args,
+                    input: args as Record<string, unknown>,
                     time: {
                       start: Date.now(),
                     },
@@ -841,7 +843,7 @@ export namespace SessionPrompt {
           )
           return result
         },
-        toModelOutput(result) {
+        toModelOutput(result: { output: string }) {
           return {
             type: "text",
             value: result.output,
@@ -856,7 +858,7 @@ export namespace SessionPrompt {
       if (!execute) continue
 
       // Wrap execute to add plugin hooks and format output
-      item.execute = async (args, opts) => {
+      item.execute = async (args: unknown, opts: { toolCallId: string; messages: ModelMessage[] }) => {
         await Plugin.trigger(
           "tool.execute.before",
           {
@@ -907,7 +909,7 @@ export namespace SessionPrompt {
           content: result.content, // directly return content to preserve ordering when outputting to model
         }
       }
-      item.toModelOutput = (result) => {
+      item.toModelOutput = (result: { output: string }) => {
         return {
           type: "text",
           value: result.output,
@@ -1604,21 +1606,21 @@ export namespace SessionPrompt {
       model: language,
       experimental_telemetry: { isEnabled: cfg.experimental?.openTelemetry },
     })
-      .then((result) => {
+      .then((result: { text: string }) => {
         if (result.text)
           return Session.update(input.session.id, (draft) => {
             const cleaned = result.text
               .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
               .split("\n")
-              .map((line) => line.trim())
-              .find((line) => line.length > 0)
+              .map((line: string) => line.trim())
+              .find((line: string) => line.length > 0)
             if (!cleaned) return
 
             const title = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
             draft.title = title
           })
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         log.error("failed to generate title", { error, model: small.id })
       })
   }
