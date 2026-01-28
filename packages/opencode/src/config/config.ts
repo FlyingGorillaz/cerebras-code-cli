@@ -45,7 +45,7 @@ export namespace Config {
       log.debug("loaded custom config", { path: Flag.OPENCODE_CONFIG })
     }
 
-    for (const file of ["opencode.jsonc", "opencode.json"]) {
+    for (const file of ["cerebras.jsonc", "cerebras.json", "opencode.jsonc", "opencode.json"]) {
       const found = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
       for (const resolved of found.toReversed()) {
         result = mergeConfigWithPlugins(result, await loadFile(resolved))
@@ -73,7 +73,7 @@ export namespace Config {
       Global.Path.config,
       ...(await Array.fromAsync(
         Filesystem.up({
-          targets: [".opencode"],
+          targets: [".cerebras", ".opencode"],
           start: Instance.directory,
           stop: Instance.worktree,
         }),
@@ -89,8 +89,8 @@ export namespace Config {
     for (const dir of directories) {
       await assertValid(dir)
 
-      if (dir.endsWith(".opencode") || dir === Flag.OPENCODE_CONFIG_DIR) {
-        for (const file of ["opencode.jsonc", "opencode.json"]) {
+      if (dir.endsWith(".cerebras") || dir.endsWith(".opencode") || dir === Flag.OPENCODE_CONFIG_DIR) {
+        for (const file of ["cerebras.jsonc", "cerebras.json", "opencode.jsonc", "opencode.json"]) {
           log.debug(`loading config from ${path.join(dir, file)}`)
           result = mergeConfigWithPlugins(result, await loadFile(path.join(dir, file)))
           // to satisy the type checker
@@ -193,7 +193,7 @@ export namespace Config {
       if (!md.data) continue
 
       const name = (() => {
-        const patterns = ["/.opencode/command/", "/command/"]
+        const patterns = ["/.cerebras/command/", "/.opencode/command/", "/command/"]
         const pattern = patterns.find((p) => item.includes(p))
 
         if (pattern) {
@@ -233,11 +233,13 @@ export namespace Config {
 
       // Extract relative path from agent folder for nested agents
       let agentName = path.basename(item, ".md")
-      const agentFolderPath = item.includes("/.opencode/agent/")
-        ? item.split("/.opencode/agent/")[1]
-        : item.includes("/agent/")
-          ? item.split("/agent/")[1]
-          : agentName + ".md"
+      const agentFolderPath = item.includes("/.cerebras/agent/")
+        ? item.split("/.cerebras/agent/")[1]
+        : item.includes("/.opencode/agent/")
+          ? item.split("/.opencode/agent/")[1]
+          : item.includes("/agent/")
+            ? item.split("/agent/")[1]
+            : agentName + ".md"
 
       // If agent is in a subfolder, include folder path in name
       if (agentFolderPath.includes("/")) {
@@ -747,6 +749,8 @@ export namespace Config {
       mergeDeep(await loadFile(path.join(Global.Path.config, "config.json"))),
       mergeDeep(await loadFile(path.join(Global.Path.config, "opencode.json"))),
       mergeDeep(await loadFile(path.join(Global.Path.config, "opencode.jsonc"))),
+      mergeDeep(await loadFile(path.join(Global.Path.config, "cerebras.json"))),
+      mergeDeep(await loadFile(path.join(Global.Path.config, "cerebras.jsonc"))),
     )
 
     await import(path.join(Global.Path.config, "config"), {
@@ -906,8 +910,8 @@ export namespace Config {
   }
 
   function globalConfigFile() {
-    const candidates = ["opencode.jsonc", "opencode.json", "config.json"].map((file) =>
-      path.join(Global.Path.config, file),
+    const candidates = ["cerebras.jsonc", "cerebras.json", "opencode.jsonc", "opencode.json", "config.json"].map(
+      (file) => path.join(Global.Path.config, file),
     )
     for (const file of candidates) {
       if (existsSync(file)) return file
