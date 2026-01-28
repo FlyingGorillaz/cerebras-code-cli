@@ -401,7 +401,7 @@ export namespace SessionProcessor {
               const delay = SessionRetry.delay(attempt, error.name === "APIError" ? error : undefined)
               if (delay !== undefined) {
                 const seconds = Math.max(1, Math.ceil(delay / 1000))
-                const message = `Rate limit hit, retrying in ${seconds}s`
+                const message = `${retry}, retrying in ${seconds}s (attempt ${attempt})`
                 SessionStatus.set(input.sessionID, {
                   type: "retry",
                   attempt,
