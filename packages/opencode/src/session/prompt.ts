@@ -532,11 +532,17 @@ export namespace SessionPrompt {
         abort,
         conversationTurns,
       })
+      // Get the user's message text for pattern matching
+      const userText = msgs
+        .filter((m) => m.info.role === "user")
+        .flatMap((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as any).text))
+        .join(" ")
       const system = await resolveSystemPrompt({
         model,
         agent,
         system: lastUser.system,
         isLastStep,
+        userMessage: userText,
       })
       // Get environment separately for cache-optimal placement (after conversation history)
       const environment = (await SystemPrompt.environment()).join("\n")
@@ -746,6 +752,7 @@ export namespace SessionPrompt {
     agent: Agent.Info
     model: Provider.Model
     isLastStep?: boolean
+    userMessage?: string
   }) {
     let system = SystemPrompt.header(input.model.providerID)
     system.push(
@@ -756,6 +763,9 @@ export namespace SessionPrompt {
       })(),
     )
     system.push(...(await SystemPrompt.custom()))
+    
+    // Add pattern context for code generation guidance
+    system.push(...(await SystemPrompt.patterns(input.userMessage, input.agent.name)))
 
     if (input.isLastStep) {
       system.push(MAX_STEPS)

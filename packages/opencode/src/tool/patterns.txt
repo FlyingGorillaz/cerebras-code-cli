@@ -1,0 +1,31 @@
+Discover and explore code patterns in the project.
+
+This tool analyzes the codebase to find recurring patterns and conventions, then stores them for use in code generation.
+
+Actions:
+- **show**: Display discovered patterns, optionally filtered by type or signature
+- **explain**: Get detailed information about a specific pattern
+- **discover**: Force re-discovery of patterns (clears cache and re-analyzes)
+- **clear**: Clear the pattern cache
+
+Parameters:
+- **action**: The action to perform (show, explain, discover, clear)
+- **pattern_filter**: Filter patterns by type (component, api, service, test, hook, utility, model, controller, middleware) or by signature substring
+- **confidence_threshold**: Minimum confidence level (0-1, default 0.7)
+
+Examples:
+- Show all component patterns: action="show", pattern_filter="component"
+- Explain a specific pattern: action="explain", pattern_filter="api-typescript"
+- Re-discover all patterns: action="discover"
+- Clear cache: action="clear"
+
+The pattern system automatically discovers:
+- Component structures (React, Vue, Svelte, etc.)
+- API endpoint patterns
+- Service/repository patterns
+- Test patterns
+- Configuration patterns
+- Hook patterns
+- Utility function patterns
+
+Patterns are cached in .cerebras/patterns/ and automatically refreshed when stale.

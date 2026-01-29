@@ -2,6 +2,7 @@ import { Ripgrep } from "../file/ripgrep"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
 import { Config } from "../config/config"
+import { Pattern } from "../pattern"
 
 import { Instance } from "../project/instance"
 import path from "path"
@@ -144,5 +145,18 @@ export namespace SystemPrompt {
       default:
         return [PROMPT_TITLE]
     }
+  }
+
+  export async function patterns(msg?: string, agent?: string): Promise<string[]> {
+    const enabled = await Pattern.isEnabled()
+    if (!enabled) return []
+
+    const mode: Pattern.PatternMode = 
+      agent === "build" ? "build" :
+      agent === "doc" || agent === "documentation" ? "doc" : "all"
+
+    const context = await Pattern.getPatternContext(msg || "", mode).catch(() => "")
+    if (context) return [context]
+    return []
   }
 }

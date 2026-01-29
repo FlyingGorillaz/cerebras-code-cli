@@ -12,6 +12,7 @@ import { WriteTool } from "./write"
 import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import { SwitchModeTool } from "./switch-mode"
+import { PatternsTool } from "./patterns"
 import type { Agent } from "../agent/agent"
 import { Tool } from "./tool"
 import { Instance } from "../project/instance"
@@ -103,6 +104,7 @@ export namespace ToolRegistry {
       WebSearchTool,
       CodeSearchTool,
       SwitchModeTool,
+      PatternsTool,
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...custom,
     ]

@@ -725,6 +725,14 @@ export namespace Config {
           chatMaxRetries: z.number().optional().describe("Number of retries for chat completions on failure"),
           disable_paste_summary: z.boolean().optional(),
           batch_tool: z.boolean().optional().describe("Enable the batch tool"),
+          patterns: z
+            .boolean()
+            .optional()
+            .describe("Enable pattern discovery for code scaffolding (default: true). Set to false to disable."),
+          patternsLLM: z
+            .boolean()
+            .optional()
+            .describe("Use LLM to validate and enhance discovered patterns (default: false). Requires patterns to be enabled."),
           openTelemetry: z
             .boolean()
             .optional()
