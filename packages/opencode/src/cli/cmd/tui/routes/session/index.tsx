@@ -119,17 +119,25 @@ export function Session() {
     return messages().findLast((x) => x.role === "user")
   })
   
+  // Track the last message ID we synced to, so we only sync when the message changes
+  // not when the user manually switches agents
+  let lastSyncedMessageId: string | undefined
+  
   createEffect(() => {
     const lastUser = lastUserMessage()
-    if (lastUser?.agent && lastUser.agent !== local.agent.current().name) {
-      local.agent.set(lastUser.agent)
-      // Also update the model if configured for this agent
-      const cfg = sync.data.config as any
-      const agentModel = cfg?.[`${lastUser.agent}_model`]
-      if (agentModel) {
-        const [providerID, modelID] = agentModel.split("/")
-        if (providerID && modelID) {
-          local.model.set({ providerID, modelID }, { recent: true })
+    // Only sync when we see a NEW message, not on every agent change
+    if (lastUser?.id && lastUser.id !== lastSyncedMessageId && lastUser.agent) {
+      lastSyncedMessageId = lastUser.id
+      if (lastUser.agent !== local.agent.current().name) {
+        local.agent.set(lastUser.agent)
+        // Also update the model if configured for this agent
+        const cfg = sync.data.config as any
+        const agentModel = cfg?.[`${lastUser.agent}_model`]
+        if (agentModel) {
+          const [providerID, modelID] = agentModel.split("/")
+          if (providerID && modelID) {
+            local.model.set({ providerID, modelID }, { recent: true })
+          }
         }
       }
     }
