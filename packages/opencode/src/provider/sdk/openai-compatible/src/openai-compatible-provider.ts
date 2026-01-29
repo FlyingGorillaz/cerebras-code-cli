@@ -69,7 +69,7 @@ export function createOpenaiCompatible(options: OpenaiCompatibleProviderSettings
     return new OpenAICompatibleChatLanguageModel(modelId, {
       provider: `${options.name ?? "openai-compatible"}.chat`,
       headers: getHeaders,
-      url: ({ path }) => `${baseURL}${path}`,
+      url: ({ path }: { path: string }) => `${baseURL}${path}`,
       fetch: options.fetch,
     })
   }
@@ -78,7 +78,7 @@ export function createOpenaiCompatible(options: OpenaiCompatibleProviderSettings
     return new OpenAIResponsesLanguageModel(modelId, {
       provider: `${options.name ?? "openai-compatible"}.responses`,
       headers: getHeaders,
-      url: ({ path }) => `${baseURL}${path}`,
+      url: ({ path }: { path: string }) => `${baseURL}${path}`,
       fetch: options.fetch,
     })
   }

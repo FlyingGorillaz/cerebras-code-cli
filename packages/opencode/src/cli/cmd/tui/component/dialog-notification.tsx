@@ -18,6 +18,7 @@ export function FullscreenNotification(props: { notification: Notification; onCl
     // Any key dismisses (after ready)
     if (ready()) {
       evt.preventDefault?.()
+      // @ts-expect-error stopPropagation exists at runtime
       evt.stopPropagation?.()
       // Small delay to prevent key from reaching prompt
       setReady(false)
@@ -60,10 +61,12 @@ export function FullscreenNotification(props: { notification: Notification; onCl
       flexDirection="column"
       gap={2}
     >
+      {/* @ts-expect-error fontSize exists at runtime */}
       <text attributes={TextAttributes.BOLD} fg={theme.backgroundPanel} style={{ fontSize: 2 }}>
         {icon()} {props.notification.title}
       </text>
       <box maxWidth={Math.min(80, dimensions().width - 10)} paddingLeft={2} paddingRight={2}>
+        {/* @ts-expect-error textAlign exists at runtime */}
         <text fg={theme.backgroundPanel} wrapMode="word" textAlign="center">
           {props.notification.message}
         </text>

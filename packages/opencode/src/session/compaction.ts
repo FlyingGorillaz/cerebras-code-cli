@@ -1,4 +1,5 @@
-import { wrapLanguageModel, type ModelMessage } from "ai"
+import { wrapLanguageModel } from "ai"
+import type { ModelMessage } from "@ai-sdk/provider-utils"
 import { Session } from "."
 import { Identifier } from "../id/id"
 import { Instance } from "../project/instance"
@@ -132,7 +133,7 @@ export namespace SessionCompaction {
       abort: input.abort,
     })
     const result = await processor.process({
-      onError(error) {
+      onError(error: unknown) {
         log.error("stream error", {
           error,
         })
@@ -183,10 +184,9 @@ export namespace SessionCompaction {
         model: language,
         middleware: [
           {
-            async transformParams(args) {
+            async transformParams(args: { type: string; params: { prompt?: ModelMessage[] } }) {
               if (args.type === "stream") {
-                // @ts-expect-error
-                args.params.prompt = ProviderTransform.message(args.params.prompt, model)
+                args.params.prompt = ProviderTransform.message(args.params.prompt as ModelMessage[], model)
               }
               return args.params
             },

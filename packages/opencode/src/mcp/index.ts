@@ -1,4 +1,4 @@
-import { type Tool } from "ai"
+import type { Tool } from "@ai-sdk/provider-utils"
 import { experimental_createMCPClient } from "@ai-sdk/mcp"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
@@ -382,7 +382,8 @@ export namespace MCP {
   }
 
   export async function tools() {
-    const result: Record<string, Tool> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: Record<string, Tool<any, any>> = {}
     const s = await state()
     const clientsSnapshot = await clients()
 
@@ -407,7 +408,8 @@ export namespace MCP {
       for (const [toolName, tool] of Object.entries(tools)) {
         const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
         const sanitizedToolName = toolName.replace(/[^a-zA-Z0-9_-]/g, "_")
-        result[sanitizedClientName + "_" + sanitizedToolName] = tool
+        // Cast to avoid strict type variance issues with FlexibleSchema<unknown> vs FlexibleSchema<any>
+        result[sanitizedClientName + "_" + sanitizedToolName] = tool as Tool<any, any>
       }
     }
     return result
